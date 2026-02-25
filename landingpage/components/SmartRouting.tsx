@@ -542,7 +542,7 @@ export const SmartRouting: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="text-[#3fb950]">✓</span>
                 <span className="text-gray-400">Sonnet:</span>
-                <span className="text-white">Google Gemini API ($1.25/1M)</span>
+                <span className="text-white">Google Gemini API ($1.40/1M)</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[#3fb950]">✓</span>

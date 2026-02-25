@@ -260,6 +260,12 @@ export async function runClaudeWithProxy(
     CLAUDISH_IS_LOCAL: isLocalModel ? "true" : "false",
   };
 
+  // Remove Claude Code's nested-session guard variable.
+  // When claudish is invoked from within Claude Code, CLAUDECODE is inherited
+  // and causes the child Claude Code to refuse to start. Since claudish makes
+  // independent API calls through a proxy (not nesting sessions), this is safe.
+  delete env.CLAUDECODE;
+
   // Handle API key and model based on mode
   if (config.monitor) {
     // Monitor mode: Don't set ANTHROPIC_API_KEY at all
