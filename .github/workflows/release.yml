@@ -40,8 +40,8 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build core package
-        run: bun run build:core
+      - name: Build CLI
+        run: bun run build:cli
 
       - name: Build binary
         run: |
@@ -63,6 +63,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for generating release notes from commits
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -72,6 +74,96 @@ jobs:
       - name: Get version
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          CURRENT_TAG="v${VERSION}"
+
+          # Find previous tag
+          PREV_TAG=$(git tag --sort=-v:refname | grep '^v' | grep -v "^${CURRENT_TAG}$" | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            # No previous tag — use all commits
+            RANGE="HEAD"
+          else
+            RANGE="${PREV_TAG}..${CURRENT_TAG}"
+          fi
+
+          echo "Generating notes for range: ${RANGE}"
+
+          # Collect commits by category using conventional commit prefixes
+          FEATURES=""
+          FIXES=""
+          DOCS=""
+          OTHER=""
+
+          while IFS= read -r line; do
+            # Skip empty lines
+            [ -z "$line" ] && continue
+
+            # Extract hash and message
+            HASH=$(echo "$line" | cut -d' ' -f1)
+            MSG=$(echo "$line" | cut -d' ' -f2-)
+            SHORT_HASH="${HASH:0:7}"
+
+            # Categorize by conventional commit prefix
+            case "$MSG" in
+              feat!:*|feat\!:*)
+                FEATURES="${FEATURES}- **BREAKING**: ${MSG#feat!: } (\`${SHORT_HASH}\`)"$'\n'
+                ;;
+              feat:*)
+                FEATURES="${FEATURES}- ${MSG#feat: } (\`${SHORT_HASH}\`)"$'\n'
+                ;;
+              fix:*)
+                FIXES="${FIXES}- ${MSG#fix: } (\`${SHORT_HASH}\`)"$'\n'
+                ;;
+              docs:*)
+                DOCS="${DOCS}- ${MSG#docs: } (\`${SHORT_HASH}\`)"$'\n'
+                ;;
+              *)
+                OTHER="${OTHER}- ${MSG} (\`${SHORT_HASH}\`)"$'\n'
+                ;;
+            esac
+          done <<< "$(git log --oneline --no-merges ${RANGE})"
+
+          # Build release notes body
+          BODY=""
+
+          if [ -n "$FEATURES" ]; then
+            BODY="${BODY}## 🚀 New Features"$'\n\n'"${FEATURES}"$'\n'
+          fi
+
+          if [ -n "$FIXES" ]; then
+            BODY="${BODY}## 🐛 Bug Fixes"$'\n\n'"${FIXES}"$'\n'
+          fi
+
+          if [ -n "$DOCS" ]; then
+            BODY="${BODY}## 📖 Documentation"$'\n\n'"${DOCS}"$'\n'
+          fi
+
+          if [ -n "$OTHER" ]; then
+            BODY="${BODY}## 🔧 Other Changes"$'\n\n'"${OTHER}"$'\n'
+          fi
+
+          # Add install section
+          BODY="${BODY}## 📦 Install"$'\n\n'
+          BODY="${BODY}"'```bash'$'\n'
+          BODY="${BODY}# npm"$'\n'
+          BODY="${BODY}npm install -g claudish"$'\n\n'
+          BODY="${BODY}# or download binary from assets below"$'\n'
+          BODY="${BODY}"'```'$'\n\n'
+
+          # Add compare link
+          if [ -n "$PREV_TAG" ]; then
+            BODY="${BODY}**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${CURRENT_TAG}"$'\n'
+          fi
+
+          # Write to file (avoids shell escaping issues with $GITHUB_OUTPUT)
+          echo "$BODY" > release-notes.md
+          echo "Generated release notes:"
+          cat release-notes.md
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -97,11 +189,12 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: v${{ steps.version.outputs.version }}
+          body_path: release-notes.md
           files: |
             release/claudish-*
             release/manifest.json
             release/checksums.txt
-          generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
 
@@ -140,15 +233,12 @@ jobs:
           cat packages/cli/recommended-models.json | head -50
 
       - name: Build packages
-        run: |
-          # Build from root to preserve workspace resolution
-          bun run build:core
-          bun run build:cli
+        run: bun run build:cli
 
       - name: Prepare for npm publish
         run: |
           cd packages/cli
-          # Remove workspace dependency (bundled in dist) and fix files array
+          # Fix files array for npm publish
           node -e "
             const pkg = require('./package.json');
             delete pkg.dependencies['@claudish/core'];
