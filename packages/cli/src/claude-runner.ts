@@ -1,6 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { spawn } from "node:child_process";
-import { writeFileSync, unlinkSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, unlinkSync, mkdirSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join, basename } from "node:path";
 import { ENV } from "./config.js";
@@ -116,7 +116,10 @@ process.stdin.on('end', () => {
  * Note: We use ~/.claudish/ instead of system temp directory to avoid Claude Code's
  * file watcher trying to watch socket files in /tmp (which causes UNKNOWN errors)
  */
-function createTempSettingsFile(modelDisplay: string, port: string): string {
+function createTempSettingsFile(
+  modelDisplay: string,
+  port: string
+): { path: string; statusLine: { type: string; command: string; padding: number } } {
   const homeDir = process.env.HOME || process.env.USERPROFILE || tmpdir();
   const claudishDir = join(homeDir, ".claudish");
 
@@ -156,16 +159,70 @@ function createTempSettingsFile(modelDisplay: string, port: string): string {
     statusCommand = `JSON=$(cat) && DIR=$(basename "$(pwd)") && [ \${#DIR} -gt 15 ] && DIR="\${DIR:0:12}..." || true && CTX=100 && COST="0" && IS_FREE="false" && IS_EST="false" && PROVIDER="" && TOKEN_MODEL="" && IN_TOK=0 && CTX_WIN=0 && ${formatTokensBash} && if [ -f "${tokenFilePath}" ]; then TOKENS=$(cat "${tokenFilePath}" 2>/dev/null | tr -d ' \\n') && REAL_CTX=$(echo "$TOKENS" | grep -o '"context_left_percent":[0-9]*' | grep -o '[0-9]*') && if [ ! -z "$REAL_CTX" ]; then CTX="$REAL_CTX"; fi && REAL_COST=$(echo "$TOKENS" | grep -o '"total_cost":[0-9.]*' | cut -d: -f2) && if [ ! -z "$REAL_COST" ]; then COST="$REAL_COST"; fi && IN_TOK=$(echo "$TOKENS" | grep -o '"input_tokens":[0-9]*' | grep -o '[0-9]*') && CTX_WIN=$(echo "$TOKENS" | grep -o '"context_window":[0-9]*' | grep -o '[0-9]*') && IS_FREE=$(echo "$TOKENS" | grep -o '"is_free":[a-z]*' | cut -d: -f2) && IS_EST=$(echo "$TOKENS" | grep -o '"is_estimated":[a-z]*' | cut -d: -f2) && PROVIDER=$(echo "$TOKENS" | grep -o '"provider_name":"[^"]*"' | cut -d'"' -f4) && TOKEN_MODEL=$(echo "$TOKENS" | grep -o '"model_name":"[^"]*"' | cut -d'"' -f4); fi && if [ "$CLAUDISH_IS_LOCAL" = "true" ]; then COST_DISPLAY="LOCAL"; elif [ "$IS_FREE" = "true" ]; then COST_DISPLAY="FREE"; elif [ "$IS_EST" = "true" ]; then COST_DISPLAY=$(printf "~\\$%.3f" "$COST"); else COST_DISPLAY=$(printf "\\$%.3f" "$COST"); fi && MODEL_DISPLAY="\${TOKEN_MODEL:-$CLAUDISH_ACTIVE_MODEL_NAME}" && if [ ! -z "$PROVIDER" ]; then MODEL_DISPLAY="$PROVIDER $MODEL_DISPLAY"; fi && if [ "$IN_TOK" -gt 0 ] 2>/dev/null && [ "$CTX_WIN" -gt 0 ] 2>/dev/null; then CTX_DISPLAY="$CTX% ($(fmt_tok $IN_TOK)/$(fmt_tok $CTX_WIN))"; else CTX_DISPLAY="$CTX%"; fi && printf "${CYAN}${BOLD}%s${RESET} ${DIM}•${RESET} ${YELLOW}%s${RESET} ${DIM}•${RESET} ${GREEN}%s${RESET} ${DIM}•${RESET} ${MAGENTA}%s${RESET}\\n" "$DIR" "$MODEL_DISPLAY" "$COST_DISPLAY" "$CTX_DISPLAY"`;
   }
 
-  const settings = {
-    statusLine: {
-      type: "command",
-      command: statusCommand,
-      padding: 0,
-    },
+  const statusLine = {
+    type: "command",
+    command: statusCommand,
+    padding: 0,
   };
 
+  const settings = { statusLine };
+
   writeFileSync(tempPath, JSON.stringify(settings, null, 2), "utf-8");
-  return tempPath;
+  return { path: tempPath, statusLine };
+}
+
+/**
+ * If the user passed --settings in claudeArgs, read their settings file,
+ * inject the claudish statusLine into it, write a merged file, and remove
+ * --settings from claudeArgs so Claude Code does not receive it twice.
+ *
+ * The tempSettingsPath is always written by createTempSettingsFile() first.
+ * This function REPLACES its content with the merged result when a user
+ * settings file exists.
+ *
+ * Mutates: config.claudeArgs (removes --settings and path if found)
+ * Mutates: tempSettingsPath file content (replaces with merged JSON)
+ */
+function mergeUserSettingsIfPresent(
+  config: ClaudishConfig,
+  tempSettingsPath: string,
+  statusLine: { type: string; command: string; padding: number }
+): void {
+  const idx = config.claudeArgs.indexOf("--settings");
+  if (idx === -1 || !config.claudeArgs[idx + 1]) {
+    // No --settings in passthrough args; nothing to merge.
+    return;
+  }
+
+  const userSettingsValue = config.claudeArgs[idx + 1];
+
+  try {
+    // Claude Code accepts --settings as either a file path or an inline JSON string.
+    // Detect inline JSON (starts with '{') vs file path.
+    let userSettings: Record<string, unknown>;
+    if (userSettingsValue.trimStart().startsWith("{")) {
+      userSettings = JSON.parse(userSettingsValue);
+    } else {
+      const rawUserSettings = readFileSync(userSettingsValue, "utf-8");
+      userSettings = JSON.parse(rawUserSettings);
+    }
+
+    // Inject claudish statusLine into user settings (overrides any existing statusLine)
+    userSettings.statusLine = statusLine;
+
+    // Overwrite the temp settings file with the merged result
+    writeFileSync(tempSettingsPath, JSON.stringify(userSettings, null, 2), "utf-8");
+  } catch {
+    // User settings unreadable or invalid JSON — claudish temp file keeps its own statusLine.
+    if (!config.quiet) {
+      console.warn(`[claudish] Warning: could not merge user settings: ${userSettingsValue}`);
+    }
+  }
+
+  // Always remove --settings from claudeArgs: either we merged successfully (our temp file
+  // contains the merged result), or the user's settings were invalid (let the temp file win
+  // rather than passing an unreadable path to Claude Code for a second error).
+  config.claudeArgs.splice(idx, 2);
 }
 
 /**
@@ -187,12 +244,15 @@ export async function runClaudeWithProxy(
   const port = portMatch ? portMatch[1] : "unknown";
 
   // Create temporary settings file with custom status line for this instance
-  const tempSettingsPath = createTempSettingsFile(modelId, port);
+  const { path: tempSettingsPath, statusLine } = createTempSettingsFile(modelId, port);
+
+  // Merge user's --settings into our temp settings file if user provided one
+  mergeUserSettingsIfPresent(config, tempSettingsPath, statusLine);
 
   // Build claude arguments
   const claudeArgs: string[] = [];
 
-  // Add settings file flag first (applies to this instance only)
+  // Add settings file flag (our merged temp file, applies to this instance only)
   claudeArgs.push("--settings", tempSettingsPath);
 
   // Interactive mode - no automatic arguments
@@ -204,6 +264,8 @@ export async function runClaudeWithProxy(
     if (config.dangerous) {
       claudeArgs.push("--dangerouslyDisableSandbox");
     }
+    // Forward user-provided passthrough args (e.g. --permission-mode, --effort, --add-dir)
+    claudeArgs.push(...config.claudeArgs);
   } else {
     // Single-shot mode - add all arguments
     // Add -p flag FIRST to enable headless/print mode (non-interactive, exits after task)
@@ -218,19 +280,8 @@ export async function runClaudeWithProxy(
     if (config.jsonOutput) {
       claudeArgs.push("--output-format", "json");
     }
-    // If agent is specified, prepend agent instruction to the prompt
-    if (config.agent && config.claudeArgs.length > 0) {
-      // Prepend agent context to the first argument (the prompt)
-      // This tells Claude Code to use the specified agent for the task
-      // Claude Code agents use @agent- prefix format
-      const modifiedArgs = [...config.claudeArgs];
-      const agentId = config.agent.startsWith("@agent-") ? config.agent : `@agent-${config.agent}`;
-      modifiedArgs[0] = `Use the ${agentId} agent to: ${modifiedArgs[0]}`;
-      claudeArgs.push(...modifiedArgs);
-    } else {
-      // Add user-provided args as-is (including prompt)
-      claudeArgs.push(...config.claudeArgs);
-    }
+    // Add user-provided args as-is (including prompt and any Claude Code flags)
+    claudeArgs.push(...config.claudeArgs);
   }
 
   // Check if this is a local model (ollama/, lmstudio/, vllm/, mlx/, or http:// URL)

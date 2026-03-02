@@ -24,7 +24,7 @@ export {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "5.2.0"; // Fallback version for compiled binaries
+let VERSION = "5.3.0"; // Fallback version for compiled binaries
 try {
   const packageJson = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   VERSION = packageJson.version;
@@ -263,10 +263,30 @@ export async function parseArgs(args: string[]): Promise<ClaudishConfig> {
     } else if (arg === "--summarize-tools") {
       // Summarize tool descriptions to reduce prompt size for local models
       config.summarizeTools = true;
-    } else {
-      // All remaining args go to claude CLI
-      config.claudeArgs = args.slice(i);
+    } else if (arg === "--") {
+      // Explicit separator: everything after -- passes directly to Claude Code.
+      // This handles edge cases where a value starts with '-' (e.g. a system prompt
+      // that begins with a dash, or a flag value that looks like a flag).
+      config.claudeArgs.push(...args.slice(i + 1));
       break;
+    } else if (arg.startsWith("-")) {
+      // Unknown flag: pass through to Claude Code with value consumed if present.
+      // Value consumption rule: if the next token exists and does NOT start with '-',
+      // treat it as this flag's value. This handles:
+      //   --agent detective          → ['--agent', 'detective']
+      //   --effort high              → ['--effort', 'high']
+      //   --no-session-persistence   → ['--no-session-persistence']  (no value)
+      //   --system-prompt "text"     → ['--system-prompt', 'text']
+      //   --allowedTools Bash,Edit   → ['--allowedTools', 'Bash,Edit']
+      config.claudeArgs.push(arg);
+      if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+        config.claudeArgs.push(args[++i]);
+      }
+    } else {
+      // Positional argument (prompt text): pass through to Claude Code in order.
+      // Example: claudish --model grok "hello world"
+      //          → claudeArgs = ['hello world']
+      config.claudeArgs.push(arg);
     }
 
     i++;
@@ -1261,6 +1281,19 @@ OPTIONS:
   -h, --help               Show this help message
   --help-ai                Show AI agent usage guide (file-based patterns, sub-agents)
   --init                   Install Claudish skill in current project (.claude/skills/)
+  --                       Separator: everything after passes directly to Claude Code
+
+CLAUDE CODE FLAG PASSTHROUGH:
+  Any unrecognized flag is automatically forwarded to Claude Code.
+  Claudish flags (--model, --stdin, --quiet, etc.) can appear in any order.
+
+  Examples:
+    claudish --model grok --agent test "task"           # --agent passes to Claude Code
+    claudish --model grok --effort high --stdin "task"   # --effort passes, --stdin stays
+    claudish --model grok --permission-mode plan -i      # Works in interactive mode too
+
+  Use -- when a Claude Code flag value starts with '-':
+    claudish --model grok -- --system-prompt "-verbose mode" "task"
 
 PROFILE MANAGEMENT:
   claudish init [--local|--global]            Setup wizard - create config and first profile

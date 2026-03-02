@@ -256,6 +256,26 @@ for (const model of models) {
 | `--debug` / `-d` | Debug logging to file | Disabled |
 | `--no-auto-approve` | Require prompts | Auto-approve enabled |
 
+### Claude Code Flag Passthrough
+
+Any Claude Code flag that claudish doesn't recognize is automatically forwarded. This means you can use:
+
+```bash
+# Agent selection
+claudish --model grok --agent code-review --stdin --quiet < prompt.md
+
+# Effort and budget control
+claudish --model grok --effort high --max-budget-usd 0.50 --stdin --quiet < prompt.md
+
+# Permission mode
+claudish --model grok --permission-mode plan --stdin --quiet < prompt.md
+```
+
+Use `--` separator when flag values start with `-`:
+```bash
+claudish --model grok -- --system-prompt "-v mode" --stdin --quiet < prompt.md
+```
+
 ## Common Workflows
 
 ### Workflow 1: Quick Code Fix (Grok)

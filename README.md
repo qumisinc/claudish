@@ -71,7 +71,7 @@ Claudish is a **BYOK AI coding assistant**:
 - ✅ **Parallel runs** - Each instance gets isolated proxy
 - ✅ **Autonomous mode** - Bypass all prompts with flags
 - ✅ **Context inheritance** - Runs in current directory with same `.claude` settings
-- ✅ **Agent support** - Use Claude Code agents in headless mode with `--agent`
+- ✅ **Claude Code flag passthrough** - Forward any Claude Code flag (`--agent`, `--effort`, `--permission-mode`, etc.) in any order
 - ✅ **Vision proxy** - Non-vision models automatically get image descriptions via Claude, so every model can "see"
 
 ## Installation
@@ -277,12 +277,12 @@ claudish [OPTIONS] <claude-args...>
 | `-d, --debug` | Enable debug logging to file | `false` |
 | `--no-auto-approve` | Disable auto-approve (require prompts) | Auto-approve **enabled** |
 | `--dangerous` | Pass `--dangerouslyDisableSandbox` | `false` |
-| `--agent <agent>` | Use specific agent (e.g., `frontend:developer`) | - |
 | `--models` | List all models or search (e.g., `--models gemini`) | - |
 | `--top-models` | Show top recommended programming models | - |
 | `--list-agents` | List available agents in current project | - |
 | `--force-update` | Force refresh model cache | - |
 | `--init` | Install Claudish skill in current project | - |
+| `--` | Separator: pass remaining flags directly to Claude Code | - |
 | `--help-ai` | Show AI agent usage guide | - |
 | `-h, --help` | Show help message | - |
 
@@ -450,27 +450,33 @@ claudish --models gemini       # Search for specific models
 claudish --top-models          # Show curated recommendations
 ```
 
-## Agent Support (NEW in v2.1.0)
+## Claude Code Flag Passthrough (NEW in v5.3.0)
 
-Run specialized agents in headless mode with direct agent selection:
+Claudish forwards all unrecognized flags directly to Claude Code. This means any Claude Code flag works with claudish — no wrapper needed:
 
 ```bash
-# Use frontend developer agent
-claudish --model x-ai/grok-code-fast-1 --agent frontend:developer "create a React button component"
+# Use Claude Code agents
+claudish --model grok --agent code-review "review auth system"
 
-# Use API architect agent
-claudish --model openai/gpt-5.3-codex --agent api-architect "design REST API for user management"
+# Control effort and permissions
+claudish --model grok --effort high --permission-mode plan "design API"
 
-# Discover available agents in your project
-claudish --list-agents
+# Set budget caps
+claudish --model grok --max-budget-usd 0.50 "quick fix"
+
+# Custom system prompts
+claudish --model grok --append-system-prompt "Always respond in JSON" "list files"
+
+# Restrict available tools
+claudish --model grok --allowedTools "Read,Grep" "search for auth bugs"
 ```
 
-**Agent Features:**
+Claudish flags (`--model`, `--stdin`, `--quiet`, `-y`, etc.) can appear in **any order** — they are always recognized regardless of position.
 
-- ✅ **Direct agent selection** - No need to ask Claude to use an agent
-- ✅ **Automatic prefixing** - Adds `@agent-` automatically (`frontend:developer` → `@agent-frontend:developer`)
-- ✅ **Project-specific agents** - Works with any agents installed in `.claude/agents/`
-- ✅ **Agent discovery** - List all available agents with `--list-agents`
+Use `--` when a Claude Code flag value starts with `-`:
+```bash
+claudish --model grok -- --system-prompt "-verbose logging" "task"
+```
 
 ## Vision Proxy (NEW in v5.1.0)
 
