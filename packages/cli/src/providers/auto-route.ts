@@ -43,13 +43,15 @@ const API_KEY_ENV_VARS: Record<string, { envVar: string; aliases?: string[] }> =
 const OPENROUTER_VENDOR_MAP: Record<string, string> = {
   google: "google",
   openai: "openai",
-  kimi: "moonshot",
-  "kimi-coding": "moonshot",
-  glm: "zhipuai",
-  "glm-coding": "zhipuai",
+  kimi: "moonshotai",
+  "kimi-coding": "moonshotai",
+  glm: "z-ai",
+  "glm-coding": "z-ai",
+  zai: "z-ai",
   minimax: "minimax",
   ollamacloud: "meta-llama",
-  // zai and poe intentionally excluded - not available on OpenRouter
+  qwen: "qwen",
+  // poe intentionally excluded - not available on OpenRouter
 };
 
 function readLiteLLMCacheSync(baseUrl: string): Array<{ id: string; name: string }> | null {

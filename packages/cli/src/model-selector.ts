@@ -42,25 +42,21 @@ export interface ModelInfo {
   supportsReasoning?: boolean;
   supportsVision?: boolean;
   isFree?: boolean;
-  source?: "OpenRouter" | "Zen" | "xAI" | "Gemini" | "OpenAI" | "GLM" | "GLM Coding" | "OllamaCloud" | "LiteLLM"; // Which platform the model is from
+  source?: "OpenRouter" | "Zen" | "xAI" | "Gemini" | "OpenAI" | "GLM" | "GLM Coding" | "OllamaCloud" | "LiteLLM" | "Recommended"; // Which platform the model is from
 }
-
-// OpenRouter free models are routed with openrouter@ prefix for explicit routing
 
 /**
  * Load recommended models from JSON
- * Adds openrouter@ prefix for explicit routing
+ * IDs are provider-agnostic — auto-routing decides the provider
  */
 function loadRecommendedModels(): ModelInfo[] {
   if (existsSync(RECOMMENDED_MODELS_JSON_PATH)) {
     try {
       const content = readFileSync(RECOMMENDED_MODELS_JSON_PATH, "utf-8");
       const data = JSON.parse(content);
-      // Add openrouter@ prefix to all recommended models for explicit routing
       return (data.models || []).map((model: ModelInfo) => ({
         ...model,
-        id: model.id.startsWith("openrouter@") ? model.id : `openrouter@${model.id}`,
-        source: "OpenRouter" as const,
+        source: "Recommended" as const,
       }));
     } catch {
       return [];

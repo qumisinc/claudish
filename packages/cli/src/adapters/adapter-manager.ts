@@ -15,6 +15,7 @@ import { OpenAIAdapter } from "./openai-adapter";
 import { QwenAdapter } from "./qwen-adapter";
 import { MiniMaxAdapter } from "./minimax-adapter";
 import { DeepSeekAdapter } from "./deepseek-adapter";
+import { GLMAdapter } from "./glm-adapter";
 
 export class AdapterManager {
   private adapters: BaseModelAdapter[];
@@ -29,6 +30,7 @@ export class AdapterManager {
       new QwenAdapter(modelId),
       new MiniMaxAdapter(modelId),
       new DeepSeekAdapter(modelId),
+      new GLMAdapter(modelId),
     ];
     this.defaultAdapter = new DefaultAdapter(modelId);
   }

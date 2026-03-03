@@ -37,7 +37,7 @@
  *   zhipu/*, glm-*         -> glm (direct)
  *   deepseek/*             -> openrouter (no direct API)
  *   x-ai/*, grok-*         -> openrouter (no direct API)
- *   qwen/*                 -> openrouter (no direct API)
+ *   qwen/*,  qwen*         -> auto-routed (no direct API, falls to OpenRouter)
  *   anthropic/*            -> native-anthropic
  *   (anything else with /) -> openrouter
  */
@@ -177,6 +177,9 @@ export const NATIVE_MODEL_PATTERNS: Array<{
   { pattern: /^meta-llama\//i, provider: "ollamacloud" },
   { pattern: /^llama-/i, provider: "ollamacloud" },
   { pattern: /^llama3/i, provider: "ollamacloud" },
+
+  // Qwen models (auto-routed, no direct API yet)
+  { pattern: /^qwen/i, provider: "qwen" },
 
   // Poe models (poe: prefix)
   { pattern: /^poe:/i, provider: "poe" },

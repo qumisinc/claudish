@@ -65,9 +65,19 @@ Claudish supports local models via:
 
 Local model APIs (LM Studio, Ollama) report `prompt_tokens` as the **full conversation context** each request, not incremental tokens. The `writeTokenFile` function uses assignment (`=`) not accumulation (`+=`) for input tokens to handle this correctly.
 
+## Two-Layer Adapter Architecture
+
+ComposedHandler maintains two adapter layers:
+- **Provider adapter** (explicit): LiteLLMAdapter, OpenRouterAdapter — handles transport format (messages, tools, payload)
+- **Model adapter** (via AdapterManager): GLMAdapter, GrokAdapter — handles model quirks (context window, vision, prepareRequest)
+
+Model adapter overrides provider adapter for: `getContextWindow()`, `supportsVision()`, `prepareRequest()`.
+When adding new model support, create a model adapter — don't embed model knowledge in provider adapters.
+
 ## Debug Logging
 
 Debug logging is behind the `--debug` flag and outputs to `logs/` directory. It's disabled by default.
+Keep full debug logging (including empty chunks, raw deltas) in log files — needed to understand real model streaming behavior. Suppress noise at the registration/initialization level (e.g., conditional middleware), not at the streaming data level.
 
 ## Version Bumping Checklist
 

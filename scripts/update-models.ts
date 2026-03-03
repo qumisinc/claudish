@@ -21,17 +21,12 @@ const MODELS_JSON_PATH = join(import.meta.dir, "../packages/cli/recommended-mode
 // The website is client-side rendered (React), so we can't scrape it with HTTP.
 // The API doesn't expose the "top-weekly" ranking, so we maintain this manually.
 const TOP_WEEKLY_PROGRAMMING_MODELS = [
-  "x-ai/grok-code-fast-1", // #1: xAI Grok Code Fast 1
-  "minimax/minimax-m2.1", // #2: MiniMax M2.1
-  "z-ai/glm-4.7", // #3: Z.AI GLM 4.7
-  "google/gemini-3-pro-preview", // #4: Google Gemini 3 Pro Preview
-  "openai/gpt-5.3", // #5: OpenAI GPT-5.3
-  "moonshotai/kimi-k2-thinking", // #6: MoonShot Kimi K2 Thinking
-  "deepseek/deepseek-v3.2", // #7: DeepSeek V3.2
-  "qwen/qwen3-vl-235b-a22b-thinking", // #8: Qwen3 VL 235B Thinking
-  "anthropic/claude-sonnet-4.5", // #9: Anthropic Claude Sonnet 4.5
-  "anthropic/claude-sonnet-4", // #10: Anthropic Claude Sonnet 4
-  "anthropic/claude-haiku-4.5", // #11: Anthropic Claude Haiku 4.5
+  "minimax/minimax-m2.5", // #1: MiniMax M2.5
+  "moonshotai/kimi-k2.5", // #2: MoonshotAI Kimi K2.5
+  "z-ai/glm-5", // #3: Z.AI GLM 5
+  "google/gemini-3.1-pro-preview", // #4: Google Gemini 3.1 Pro Preview
+  "openai/gpt-5.2", // #5: OpenAI GPT-5.2
+  "qwen/qwen3.5-plus-02-15", // #6: Qwen 3.5 Plus
 ];
 
 async function updateModels(): Promise<void> {
@@ -102,8 +97,12 @@ async function updateModels(): Promise<void> {
       category = "reasoning";
     }
 
+    // Derive canonical short name by stripping vendor prefix
+    const canonicalId = modelId.includes("/") ? modelId.split("/").slice(1).join("/") : modelId;
+
     recommendations.push({
-      id: modelId,
+      id: canonicalId,
+      openrouterId: modelId,
       name,
       description,
       provider: provider.charAt(0).toUpperCase() + provider.slice(1),

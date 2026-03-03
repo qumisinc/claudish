@@ -24,7 +24,7 @@ export {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "5.4.1"; // Fallback version for compiled binaries
+let VERSION = "5.5.0"; // Fallback version for compiled binaries
 try {
   const packageJson = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   VERSION = packageJson.version;
@@ -1625,32 +1625,23 @@ function printAvailableModels(): void {
     const modelInfo = loadModelInfo();
     for (const model of basicModels) {
       const info = modelInfo[model];
-      // Add openrouter@ prefix for explicit routing
-      const displayModel = model === "custom" ? model : `openrouter@${model}`;
-      console.log(`  ${displayModel}`);
+      console.log(`  ${model}`);
       console.log(`    ${info.name} - ${info.description}`);
       console.log("");
     }
     return;
   }
 
-  console.log(`\nAvailable OpenRouter Models (last updated: ${lastUpdated}):\n`);
+  console.log(`\nRecommended Models (last updated: ${lastUpdated}):\n`);
 
   // Table header
-  console.log("  Model                          Provider    Pricing     Context  Capabilities");
-  console.log("  " + "─".repeat(86));
+  console.log("  Model                        Pricing     Context  Capabilities");
+  console.log("  " + "─".repeat(66));
 
   // Table rows
   for (const model of models) {
-    // Format model ID with openrouter@ prefix for explicit routing
-    const fullModelId = model.id.startsWith("openrouter@") ? model.id : `openrouter@${model.id}`;
-    const modelId = fullModelId.length > 30 ? fullModelId.substring(0, 27) + "..." : fullModelId;
-    const modelIdPadded = modelId.padEnd(30);
-
-    // Format provider (max 10 chars)
-    const provider =
-      model.provider.length > 10 ? model.provider.substring(0, 7) + "..." : model.provider;
-    const providerPadded = provider.padEnd(10);
+    const modelId = model.id.length > 28 ? model.id.substring(0, 25) + "..." : model.id;
+    const modelIdPadded = modelId.padEnd(28);
 
     // Format pricing (average) - handle special cases
     let pricing = model.pricing?.average || "N/A";
@@ -1675,7 +1666,7 @@ function printAvailableModels(): void {
     const capabilities = `${tools} ${reasoning} ${vision}`;
 
     console.log(
-      `  ${modelIdPadded} ${providerPadded} ${pricingPadded} ${contextPadded} ${capabilities}`
+      `  ${modelIdPadded} ${pricingPadded} ${contextPadded} ${capabilities}`
     );
   }
 
@@ -1698,17 +1689,8 @@ function printAvailableModelsJSON(): void {
     const jsonContent = readFileSync(jsonPath, "utf-8");
     const data = JSON.parse(jsonContent);
 
-    // Add openrouter@ prefix to model IDs for explicit routing
-    const outputData = {
-      ...data,
-      models: data.models.map((model: any) => ({
-        ...model,
-        id: model.id.startsWith("openrouter@") ? model.id : `openrouter@${model.id}`,
-      })),
-    };
-
-    // Output clean JSON to stdout
-    console.log(JSON.stringify(outputData, null, 2));
+    // Output clean JSON to stdout — IDs are provider-agnostic
+    console.log(JSON.stringify(data, null, 2));
   } catch (error) {
     // If JSON file doesn't exist, construct from model info
     const models = getAvailableModels();
@@ -1723,8 +1705,7 @@ function printAvailableModelsJSON(): void {
         .map((modelId) => {
           const info = modelInfo[modelId];
           return {
-            // Add openrouter@ prefix for explicit routing
-            id: `openrouter@${modelId}`,
+            id: modelId,
             name: info.name,
             description: info.description,
             provider: info.provider,
