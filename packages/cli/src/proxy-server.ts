@@ -43,6 +43,7 @@ import { fetchLiteLLMModels } from "./model-loader.js";
 export interface ProxyServerOptions {
   summarizeTools?: boolean; // Summarize tool descriptions for local models
   quiet?: boolean; // Suppress informational stderr output (e.g., [Auto-route])
+  isInteractive?: boolean; // Whether the current session is interactive (gates consent prompt)
 }
 
 export async function createProxyServer(
@@ -72,7 +73,7 @@ export async function createProxyServer(
       const orAdapter = new OpenRouterAdapter(modelId);
       openRouterHandlers.set(
         modelId,
-        new ComposedHandler(orProvider, modelId, modelId, port, { adapter: orAdapter })
+        new ComposedHandler(orProvider, modelId, modelId, port, { adapter: orAdapter, isInteractive: options.isInteractive })
       );
     }
     return openRouterHandlers.get(modelId)!;
@@ -91,7 +92,7 @@ export async function createProxyServer(
       const poeTransport = new PoeProvider(poeApiKey);
       poeHandlers.set(
         modelId,
-        new ComposedHandler(poeTransport, modelId, modelId, port)
+        new ComposedHandler(poeTransport, modelId, modelId, port, { isInteractive: options.isInteractive })
       );
     }
     return poeHandlers.get(modelId)!;
@@ -123,6 +124,7 @@ export async function createProxyServer(
         adapter,
         tokenStrategy: "local",
         summarizeTools: options.summarizeTools,
+        isInteractive: options.isInteractive,
       });
       localProviderHandlers.set(targetModel, handler);
       log(
@@ -145,6 +147,7 @@ export async function createProxyServer(
         adapter,
         tokenStrategy: "local",
         summarizeTools: options.summarizeTools,
+        isInteractive: options.isInteractive,
       });
       localProviderHandlers.set(targetModel, handler);
       log(
@@ -210,6 +213,7 @@ export async function createProxyServer(
         const gemAdapter = new GeminiAdapter(resolved.modelName);
         handler = new ComposedHandler(gemProvider, targetModel, resolved.modelName, port, {
           adapter: gemAdapter,
+          isInteractive: options.isInteractive,
         });
         log(`[Proxy] Created Gemini handler (composed): ${resolved.modelName}`);
       } else if (resolved.provider.name === "gemini-codeassist") {
@@ -218,6 +222,7 @@ export async function createProxyServer(
         handler = new ComposedHandler(gcaProvider, targetModel, resolved.modelName, port, {
           adapter: gcaAdapter,
           unwrapGeminiResponse: true,
+          isInteractive: options.isInteractive,
         });
         log(`[Proxy] Created Gemini Code Assist handler (composed): ${resolved.modelName}`);
       } else if (resolved.provider.name === "openai") {
@@ -227,6 +232,7 @@ export async function createProxyServer(
         handler = new ComposedHandler(oaiProvider, targetModel, resolved.modelName, port, {
           adapter: oaiAdapter,
           tokenStrategy: "delta-aware",
+          isInteractive: options.isInteractive,
         });
         log(`[Proxy] Created OpenAI handler (composed): ${resolved.modelName}`);
       } else if (
@@ -241,6 +247,7 @@ export async function createProxyServer(
         const acAdapter = new AnthropicPassthroughAdapter(resolved.modelName, resolved.provider.name);
         handler = new ComposedHandler(acProvider, targetModel, resolved.modelName, port, {
           adapter: acAdapter,
+          isInteractive: options.isInteractive,
         });
         log(`[Proxy] Created ${resolved.provider.name} handler (composed): ${resolved.modelName}`);
       } else if (resolved.provider.name === "glm" || resolved.provider.name === "glm-coding") {
@@ -250,6 +257,7 @@ export async function createProxyServer(
         handler = new ComposedHandler(glmProvider, targetModel, resolved.modelName, port, {
           adapter: glmAdapter,
           tokenStrategy: "delta-aware",
+          isInteractive: options.isInteractive,
         });
         log(`[Proxy] Created ${resolved.provider.name} handler (composed): ${resolved.modelName}`);
       } else if (resolved.provider.name === "opencode-zen") {
@@ -260,6 +268,7 @@ export async function createProxyServer(
           const zenAcAdapter = new AnthropicPassthroughAdapter(resolved.modelName, resolved.provider.name);
           handler = new ComposedHandler(zenAcProvider, targetModel, resolved.modelName, port, {
             adapter: zenAcAdapter,
+            isInteractive: options.isInteractive,
           });
           log(`[Proxy] Created OpenCode Zen (Anthropic composed): ${resolved.modelName}`);
         } else {
@@ -268,6 +277,7 @@ export async function createProxyServer(
           handler = new ComposedHandler(zenProvider, targetModel, resolved.modelName, port, {
             adapter: zenAdapter,
             tokenStrategy: "delta-aware",
+            isInteractive: options.isInteractive,
           });
           log(`[Proxy] Created OpenCode Zen (composed): ${resolved.modelName}`);
         }
@@ -278,6 +288,7 @@ export async function createProxyServer(
         handler = new ComposedHandler(ocProvider, targetModel, resolved.modelName, port, {
           adapter: ocAdapter,
           tokenStrategy: "accumulate-both",
+          isInteractive: options.isInteractive,
         });
         log(`[Proxy] Created OllamaCloud handler (composed): ${resolved.modelName}`);
       } else if (resolved.provider.name === "litellm") {
@@ -290,7 +301,10 @@ export async function createProxyServer(
         }
         const provider = new LiteLLMProvider(resolved.provider.baseUrl, apiKey, resolved.modelName);
         const adapter = new LiteLLMAdapter(resolved.modelName, resolved.provider.baseUrl);
-        handler = new ComposedHandler(provider, targetModel, resolved.modelName, port, { adapter });
+        handler = new ComposedHandler(provider, targetModel, resolved.modelName, port, {
+          adapter,
+          isInteractive: options.isInteractive,
+        });
         log(`[Proxy] Created LiteLLM handler (composed): ${resolved.modelName} (${resolved.provider.baseUrl})`);
       } else if (resolved.provider.name === "vertex") {
         // Vertex AI supports two modes:
@@ -310,6 +324,7 @@ export async function createProxyServer(
           const vxGemAdapter = new GeminiAdapter(resolved.modelName);
           handler = new ComposedHandler(vxGemProvider, targetModel, resolved.modelName, port, {
             adapter: vxGemAdapter,
+            isInteractive: options.isInteractive,
           });
           log(`[Proxy] Created Vertex AI Express handler (composed): ${resolved.modelName}`);
         } else if (vertexConfig) {
@@ -340,6 +355,7 @@ export async function createProxyServer(
           handler = new ComposedHandler(vxProvider, targetModel, resolved.modelName, port, {
             adapter: vxAdapter,
             ...handlerOpts,
+            isInteractive: options.isInteractive,
           });
           log(
             `[Proxy] Created Vertex AI OAuth handler (composed): ${resolved.modelName} [${parsed.publisher}] (project: ${vertexConfig.projectId})`

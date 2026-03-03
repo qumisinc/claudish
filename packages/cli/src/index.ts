@@ -30,6 +30,8 @@ const isKimiLogout = args.includes("--kimi-logout");
 const isUpdateCommand = args.includes("update");
 const isInitCommand = args[0] === "init" || args.includes("init");
 const isProfileCommand = args[0] === "profile" || args.some((a, i) => a === "profile" && (i === 0 || !args[i-1]?.startsWith("-")));
+// Check for telemetry management subcommand
+const isTelemetryCommand = args[0] === "telemetry";
 
 if (isMcpMode) {
   // MCP server mode - dynamic import to keep CLI fast
@@ -105,6 +107,13 @@ if (isMcpMode) {
   // Profile management commands
   const profileArgIndex = args.findIndex(a => a === "profile");
   import("./profile-commands.js").then((pc) => pc.profileCommand(args.slice(profileArgIndex + 1)).catch(handlePromptExit));
+} else if (isTelemetryCommand) {
+  // Telemetry management: claudish telemetry on|off|status|reset
+  const subcommand = args[1] ?? "status";
+  import("./telemetry.js").then((tel) => {
+    tel.initTelemetry({ interactive: true } as any);
+    return tel.handleTelemetryCommand(subcommand);
+  });
 } else {
   // CLI mode
   runCli();
@@ -248,6 +257,11 @@ async function runCli() {
 
     // Initialize logger if debug mode with specified log level
     initLogger(cliConfig.debug, cliConfig.logLevel);
+
+    // Initialize telemetry (reads consent, generates session_id)
+    // Must come after parseArgs() so cliConfig.interactive is known
+    const { initTelemetry } = await import("./telemetry.js");
+    initTelemetry(cliConfig);
 
     // Show debug log location if enabled
     if (cliConfig.debug && !cliConfig.quiet) {
@@ -400,6 +414,7 @@ async function runCli() {
       {
         summarizeTools: cliConfig.summarizeTools,
         quiet: cliConfig.quiet,
+        isInteractive: cliConfig.interactive,
       }
     );
 

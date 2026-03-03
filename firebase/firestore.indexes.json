@@ -1,0 +1,30 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "error_reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "provider_name", "order": "ASCENDING" },
+        { "fieldPath": "ingested_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "error_reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "error_code", "order": "ASCENDING" },
+        { "fieldPath": "claudish_version", "order": "ASCENDING" },
+        { "fieldPath": "ingested_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "error_reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "platform", "order": "ASCENDING" },
+        { "fieldPath": "ingested_at", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

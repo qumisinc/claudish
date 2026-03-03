@@ -52,12 +52,34 @@ export interface ProfileWithScope extends Profile {
 }
 
 /**
+ * Telemetry consent state. Persisted to ~/.claudish/config.json under the
+ * "telemetry" key. Absence of the "telemetry" key means the user has never
+ * been prompted (equivalent to enabled: false, askedAt: undefined).
+ */
+export interface TelemetryConsent {
+  /** Explicit opt-in. Default is false (disabled until user says yes). */
+  enabled: boolean;
+  /**
+   * ISO 8601 UTC timestamp of when the user was asked. Absent means the user
+   * has never seen the consent prompt. This is the gate for re-prompting.
+   */
+  askedAt?: string;
+  /**
+   * Claudish version string when the user was first prompted. Stored for
+   * future re-consent logic (e.g., if schema changes significantly).
+   */
+  promptedVersion?: string;
+}
+
+/**
  * Root configuration structure
  */
 export interface ClaudishProfileConfig {
   version: string;
   defaultProfile: string;
   profiles: Record<string, Profile>;
+  /** Telemetry consent state. Absent = never prompted. */
+  telemetry?: TelemetryConsent;
 }
 
 /**
@@ -104,11 +126,16 @@ export function loadConfig(): ClaudishProfileConfig {
     const config = JSON.parse(content) as ClaudishProfileConfig;
 
     // Validate and merge with defaults
-    return {
+    const merged: ClaudishProfileConfig = {
       version: config.version || DEFAULT_CONFIG.version,
       defaultProfile: config.defaultProfile || DEFAULT_CONFIG.defaultProfile,
       profiles: config.profiles || DEFAULT_CONFIG.profiles,
     };
+    // Preserve telemetry consent state if present
+    if (config.telemetry !== undefined) {
+      merged.telemetry = config.telemetry;
+    }
+    return merged;
   } catch (error) {
     console.error(`Warning: Failed to load config, using defaults: ${error}`);
     return { ...DEFAULT_CONFIG };

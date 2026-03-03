@@ -32,6 +32,7 @@ import { createOllamaJsonlStream } from "./shared/stream-parsers/ollama-jsonl.js
 import { createGeminiSseStream } from "./shared/stream-parsers/gemini-sse.js";
 import { log, logStderr, logStructured, getLogLevel, truncateContent } from "../logger.js";
 import { describeImages, type OpenAIImageBlock, type VisionProxyAuthHeaders } from "../services/vision-proxy.js";
+import { reportError } from "../telemetry.js";
 
 function extractAuthHeaders(c: Context): VisionProxyAuthHeaders {
   const headers = c.req.header();
@@ -51,16 +52,21 @@ export interface ComposedHandlerOptions {
   summarizeTools?: boolean;
   /** Whether the Gemini SSE stream wraps chunks in {response: {...}} (CodeAssist) */
   unwrapGeminiResponse?: boolean;
+  /** Whether the current session is interactive (gates consent prompt). */
+  isInteractive?: boolean;
 }
 
 export class ComposedHandler implements ModelHandler {
   private provider: ProviderTransport;
   private adapterManager: AdapterManager;
   private explicitAdapter?: BaseModelAdapter;
+  /** Model-specific adapter (GLM, Grok, etc.) — handles model quirks independent of provider */
+  private modelAdapter?: BaseModelAdapter;
   private middlewareManager: MiddlewareManager;
   private tokenTracker: TokenTracker;
   private targetModel: string;
   private options: ComposedHandlerOptions;
+  private isInteractive: boolean;
 
   constructor(
     provider: ProviderTransport,
@@ -73,28 +79,49 @@ export class ComposedHandler implements ModelHandler {
     this.targetModel = targetModel;
     this.options = options;
     this.explicitAdapter = options.adapter;
+    this.isInteractive = options.isInteractive ?? false;
 
     // Initialize adapter manager for automatic adapter selection
     this.adapterManager = new AdapterManager(targetModel);
 
-    // Initialize middleware
+    // Always resolve model-specific adapter (GLM, Grok, DeepSeek, etc.)
+    // This handles model quirks independent of provider transport (LiteLLM, OpenRouter, etc.)
+    const resolvedModelAdapter = this.adapterManager.getAdapter();
+    if (resolvedModelAdapter.getName() !== "DefaultAdapter") {
+      this.modelAdapter = resolvedModelAdapter;
+    }
+
+    // Initialize middleware (only register model-specific middleware when applicable)
     this.middlewareManager = new MiddlewareManager();
-    this.middlewareManager.register(new GeminiThoughtSignatureMiddleware());
+    if (targetModel.includes("gemini") || targetModel.includes("google/")) {
+      this.middlewareManager.register(new GeminiThoughtSignatureMiddleware());
+    }
     this.middlewareManager
       .initialize()
       .catch((err) => log(`[ComposedHandler:${targetModel}] Middleware init error: ${err}`));
 
-    // Initialize token tracker
+    // Initialize token tracker — model adapter knows the real context window
     this.tokenTracker = new TokenTracker(port, {
-      contextWindow: this.getAdapter().getContextWindow(),
+      contextWindow: this.getModelContextWindow(),
       providerName: provider.name,
       modelName,
       providerDisplayName: provider.displayName,
     });
   }
 
+  /** Provider adapter — handles transport format (messages, tools, payload) */
   private getAdapter(): BaseModelAdapter {
     return this.explicitAdapter || this.adapterManager.getAdapter();
+  }
+
+  /** Model context window — model adapter wins over provider adapter */
+  private getModelContextWindow(): number {
+    return this.modelAdapter?.getContextWindow() ?? this.getAdapter().getContextWindow();
+  }
+
+  /** Model vision support — model adapter wins over provider adapter */
+  private getModelSupportsVision(): boolean {
+    return this.modelAdapter?.supportsVision() ?? this.getAdapter().supportsVision();
   }
 
   async handle(c: Context, payload: any): Promise<Response> {
@@ -110,7 +137,7 @@ export class ComposedHandler implements ModelHandler {
     const tools = adapter.convertTools(claudeRequest, this.options.summarizeTools);
 
     // Handle image content for models that don't support vision
-    if (!adapter.supportsVision()) {
+    if (!this.getModelSupportsVision()) {
       // Collect all image blocks from all messages with their positions
       const imageBlocks: Array<{ msgIdx: number; partIdx: number; block: OpenAIImageBlock }> = [];
       for (let msgIdx = 0; msgIdx < messages.length; msgIdx++) {
@@ -196,6 +223,10 @@ export class ComposedHandler implements ModelHandler {
 
     // 5. Adapter post-processing (tool name truncation, reasoning params, etc.)
     adapter.prepareRequest(requestPayload, claudeRequest);
+    // Model adapter may also need to post-process (e.g., strip unsupported thinking params)
+    if (this.modelAdapter && this.modelAdapter !== adapter) {
+      this.modelAdapter.prepareRequest(requestPayload, claudeRequest);
+    }
     const toolNameMap = adapter.getToolNameMap();
 
     // 5b. Refresh auth / health check (must happen before transformPayload, which may use auth state)
@@ -205,6 +236,18 @@ export class ComposedHandler implements ModelHandler {
       } catch (err: any) {
         log(`[${this.provider.displayName}] Auth/health check failed: ${err.message}`);
         logStderr(`Error [${this.provider.displayName}]: Auth/health check failed — ${err.message}. Check credentials and server.`);
+        reportError({
+          error: err,
+          providerName: this.provider.name,
+          providerDisplayName: this.provider.displayName,
+          streamFormat: this.provider.streamFormat,
+          modelId: this.targetModel,
+          httpStatus: undefined,
+          isStreaming: false,
+          retryAttempted: false,
+          isInteractive: this.isInteractive,
+          authType: "oauth",
+        });
         return c.json(
           { error: { type: "connection_error", message: err.message } },
           503 as any
@@ -256,6 +299,17 @@ export class ComposedHandler implements ModelHandler {
         const msg = `Cannot connect to ${this.provider.displayName} at ${endpoint}. Make sure the server is running.`;
         log(`[${this.provider.displayName}] ${msg}`);
         logStderr(`Error: ${msg} Check the server is running.`);
+        reportError({
+          error,
+          providerName: this.provider.name,
+          providerDisplayName: this.provider.displayName,
+          streamFormat: this.provider.streamFormat,
+          modelId: this.targetModel,
+          httpStatus: undefined,
+          isStreaming: false,
+          retryAttempted: false,
+          isInteractive: this.isInteractive,
+        });
         return c.json({ error: { type: "connection_error", message: msg } }, 503 as any);
       }
       throw error;
@@ -283,11 +337,35 @@ export class ComposedHandler implements ModelHandler {
             const errorText = await retryResp.text();
             log(`[${this.provider.displayName}] Retry failed: ${errorText}`);
             logStderr(`Error [${this.provider.displayName}]: HTTP ${retryResp.status} after auth retry. Check API key.`);
+            reportError({
+              error: new Error(errorText),
+              providerName: this.provider.name,
+              providerDisplayName: this.provider.displayName,
+              streamFormat: this.provider.streamFormat,
+              modelId: this.targetModel,
+              httpStatus: retryResp.status,
+              isStreaming: false,
+              retryAttempted: true,
+              isInteractive: this.isInteractive,
+              authType: "oauth",
+            });
             return c.json({ error: errorText }, retryResp.status as any);
           }
         } catch (err: any) {
           log(`[${this.provider.displayName}] Auth refresh failed: ${err.message}`);
           logStderr(`Error [${this.provider.displayName}]: Authentication failed — ${err.message}. Check API key.`);
+          reportError({
+            error: err,
+            providerName: this.provider.name,
+            providerDisplayName: this.provider.displayName,
+            streamFormat: this.provider.streamFormat,
+            modelId: this.targetModel,
+            httpStatus: 401,
+            isStreaming: false,
+            retryAttempted: true,
+            isInteractive: this.isInteractive,
+            authType: "oauth",
+          });
           return c.json(
             { error: { type: "authentication_error", message: err.message } },
             401 as any
@@ -298,6 +376,33 @@ export class ComposedHandler implements ModelHandler {
         log(`[${this.provider.displayName}] Error: ${errorText}`);
         const hint = getRecoveryHint(response.status, errorText, this.provider.displayName);
         logStderr(`Error [${this.provider.displayName}]: HTTP ${response.status}. ${hint}`);
+
+        // Extract structured error type from provider response body if present
+        let providerErrorType: string | undefined;
+        try {
+          const parsed = JSON.parse(errorText);
+          providerErrorType = parsed?.error?.type || parsed?.type || parsed?.code || undefined;
+          // Only keep short, clearly-typed values (not freeform messages)
+          if (typeof providerErrorType === "string" && providerErrorType.length > 50) {
+            providerErrorType = undefined;
+          }
+        } catch {
+          // Not JSON — no structured error type available
+        }
+
+        reportError({
+          error: new Error(errorText),
+          providerName: this.provider.name,
+          providerDisplayName: this.provider.displayName,
+          streamFormat: this.provider.streamFormat,
+          modelId: this.targetModel,
+          httpStatus: response.status,
+          isStreaming: false,
+          retryAttempted: false,
+          isInteractive: this.isInteractive,
+          providerErrorType,
+        });
+
         return c.json({ error: errorText }, response.status as any);
       }
     }
