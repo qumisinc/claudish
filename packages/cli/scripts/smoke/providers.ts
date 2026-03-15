@@ -34,12 +34,13 @@ const REPRESENTATIVE_MODELS: Record<string, string> = {
   gemini: "gemini-2.0-flash",
 };
 
-// Providers whose models can't process images natively.
-// In production, the fallback chain routes vision to another provider.
-// Smoke tests bypass the proxy, so we skip vision probes for these.
+// Providers whose representative smoke model can't process images.
+// The provider may support vision via other models (e.g. GLM-4.6V),
+// but the smoke test model (glm-5, minimax-m2.5) is text-only.
 const NO_NATIVE_VISION = new Set([
   "minimax",
   "minimax-coding",
+  "glm", // glm-5 is text-only; vision models are GLM-4.5V/GLM-4.6V
 ]);
 
 // Providers that use Anthropic-compat wire format
