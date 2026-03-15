@@ -14,11 +14,8 @@ import { BaseModelAdapter, type AdapterResult } from "./base-adapter.js";
 import { log } from "../logger.js";
 
 export class OpenAIAdapter extends BaseModelAdapter {
-  private providerCapabilities?: { supportsVision?: boolean };
-
-  constructor(modelId: string, providerCapabilities?: { supportsVision?: boolean }) {
+  constructor(modelId: string) {
     super(modelId);
-    this.providerCapabilities = providerCapabilities;
   }
 
   processTextContent(textContent: string, accumulatedText: string): AdapterResult {
@@ -104,10 +101,6 @@ export class OpenAIAdapter extends BaseModelAdapter {
   }
 
   override supportsVision(): boolean {
-    // Provider-level: if provider says no vision, respect it
-    if (this.providerCapabilities && this.providerCapabilities.supportsVision === false) {
-      return false;
-    }
     // GLM-specific: only "V" variants support vision
     const model = this.modelId.toLowerCase();
     if (model.startsWith("glm-") && !/\d+\.?\d*v/.test(model)) {

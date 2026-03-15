@@ -132,11 +132,7 @@ export async function createProxyServer(
       const provider = new LocalTransport(resolved.provider, resolved.modelName, {
         concurrency: resolved.concurrency,
       });
-      const adapter = new LocalModelAdapter(
-        resolved.modelName,
-        resolved.provider.name,
-        resolved.provider.capabilities
-      );
+      const adapter = new LocalModelAdapter(resolved.modelName, resolved.provider.name);
       const handler = new ComposedHandler(provider, resolved.modelName, resolved.modelName, port, {
         adapter,
         tokenStrategy: "local",
@@ -155,11 +151,7 @@ export async function createProxyServer(
     if (urlParsed) {
       const providerConfig = createUrlProvider(urlParsed);
       const provider = new LocalTransport(providerConfig, urlParsed.modelName);
-      const adapter = new LocalModelAdapter(
-        urlParsed.modelName,
-        providerConfig.name,
-        providerConfig.capabilities
-      );
+      const adapter = new LocalModelAdapter(urlParsed.modelName, providerConfig.name);
       const handler = new ComposedHandler(
         provider,
         urlParsed.modelName,
@@ -251,7 +243,7 @@ export async function createProxyServer(
       } else if (resolved.provider.name === "openai") {
         // OpenAI uses ComposedHandler with OpenAIProvider + OpenAIAdapter
         const oaiProvider = new OpenAIProvider(resolved.provider, resolved.modelName, apiKey);
-        const oaiAdapter = new OpenAIAdapter(resolved.modelName, resolved.provider.capabilities);
+        const oaiAdapter = new OpenAIAdapter(resolved.modelName);
         handler = new ComposedHandler(oaiProvider, targetModel, resolved.modelName, port, {
           adapter: oaiAdapter,
           tokenStrategy: "delta-aware",
@@ -279,7 +271,7 @@ export async function createProxyServer(
       } else if (resolved.provider.name === "glm" || resolved.provider.name === "glm-coding") {
         // GLM and GLM Coding Plan use OpenAI-compatible API — composed handler
         const glmProvider = new OpenAIProvider(resolved.provider, resolved.modelName, apiKey);
-        const glmAdapter = new OpenAIAdapter(resolved.modelName, resolved.provider.capabilities);
+        const glmAdapter = new OpenAIAdapter(resolved.modelName);
         handler = new ComposedHandler(glmProvider, targetModel, resolved.modelName, port, {
           adapter: glmAdapter,
           tokenStrategy: "delta-aware",
@@ -311,7 +303,7 @@ export async function createProxyServer(
           );
         } else {
           const zenProvider = new OpenAIProvider(resolved.provider, resolved.modelName, zenApiKey);
-          const zenAdapter = new OpenAIAdapter(resolved.modelName, resolved.provider.capabilities);
+          const zenAdapter = new OpenAIAdapter(resolved.modelName);
           handler = new ComposedHandler(zenProvider, targetModel, resolved.modelName, port, {
             adapter: zenAdapter,
             tokenStrategy: "delta-aware",

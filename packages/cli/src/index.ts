@@ -4,6 +4,46 @@
 import { config } from "dotenv";
 config({ quiet: true }); // Loads .env from current working directory
 
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+/**
+ * Load API keys and custom endpoints from ~/.claudish/config.json into process.env.
+ * Environment variables already set take precedence over stored values.
+ * Uses raw fs reads (no profile-config.ts import) to avoid loading heavy dependencies
+ * on every CLI invocation.
+ */
+function loadStoredApiKeys(): void {
+  try {
+    const configPath = join(homedir(), ".claudish", "config.json");
+    if (!existsSync(configPath)) return;
+    const raw = readFileSync(configPath, "utf-8");
+    const cfg = JSON.parse(raw) as {
+      apiKeys?: Record<string, string>;
+      endpoints?: Record<string, string>;
+    };
+    if (cfg.apiKeys) {
+      for (const [envVar, value] of Object.entries(cfg.apiKeys)) {
+        if (!process.env[envVar] && typeof value === "string") {
+          process.env[envVar] = value;
+        }
+      }
+    }
+    if (cfg.endpoints) {
+      for (const [envVar, value] of Object.entries(cfg.endpoints)) {
+        if (!process.env[envVar] && typeof value === "string") {
+          process.env[envVar] = value;
+        }
+      }
+    }
+  } catch {
+    // Silently ignore config load failures
+  }
+}
+
+loadStoredApiKeys();
+
 // Check for MCP mode before loading heavy dependencies
 const isMcpMode = process.argv.includes("--mcp");
 
@@ -18,7 +58,6 @@ function handlePromptExit(err: unknown): void {
 
 // Check for auth and profile management commands
 const args = process.argv.slice(2);
-const firstArg = args[0];
 
 // Auth commands (--gemini-login, --gemini-logout, --kimi-login, --kimi-logout)
 const isGeminiLogin = args.includes("--gemini-login");
@@ -34,6 +73,8 @@ const isProfileCommand =
   args.some((a, i) => a === "profile" && (i === 0 || !args[i - 1]?.startsWith("-")));
 // Check for telemetry management subcommand
 const isTelemetryCommand = args[0] === "telemetry";
+// Check for interactive config TUI
+const isConfigCommand = args[0] === "config";
 
 if (isMcpMode) {
   // MCP server mode - dynamic import to keep CLI fast
@@ -125,6 +166,9 @@ if (isMcpMode) {
     tel.initTelemetry({ interactive: true } as any);
     return tel.handleTelemetryCommand(subcommand);
   });
+} else if (isConfigCommand) {
+  // Interactive configuration TUI: claudish config (full-screen btop-inspired TUI)
+  import("./tui/index.js").then((m) => m.startConfigTui().catch(handlePromptExit));
 } else {
   // CLI mode
   runCli();

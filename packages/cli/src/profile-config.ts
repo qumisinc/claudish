@@ -98,6 +98,10 @@ export interface ClaudishProfileConfig {
    * Maps model name patterns (exact, glob, or "*") to ordered lists of routing entries.
    */
   routing?: RoutingRules;
+  /** API keys stored in config (NOT env files). Env vars take precedence at runtime. */
+  apiKeys?: Record<string, string>;
+  /** Custom provider endpoints (env var name → URL) */
+  endpoints?: Record<string, string>;
 }
 
 /**
@@ -156,6 +160,12 @@ export function loadConfig(): ClaudishProfileConfig {
     // Preserve custom routing rules if present
     if (config.routing !== undefined) {
       merged.routing = config.routing;
+    }
+    if (config.apiKeys !== undefined) {
+      merged.apiKeys = config.apiKeys;
+    }
+    if (config.endpoints !== undefined) {
+      merged.endpoints = config.endpoints;
     }
     return merged;
   } catch (error) {
@@ -524,4 +534,66 @@ export function listAllProfiles(): ProfileWithScope[] {
   }
 
   return result;
+}
+
+// ─── API Key Helpers ──────────────────────────────────────
+
+/**
+ * Get a stored API key from ~/.claudish/config.json
+ */
+export function getApiKey(envVar: string): string | undefined {
+  const config = loadConfig();
+  return config.apiKeys?.[envVar];
+}
+
+/**
+ * Store an API key in ~/.claudish/config.json
+ */
+export function setApiKey(envVar: string, value: string): void {
+  const config = loadConfig();
+  if (!config.apiKeys) config.apiKeys = {};
+  config.apiKeys[envVar] = value;
+  saveConfig(config);
+}
+
+/**
+ * Remove a stored API key from ~/.claudish/config.json
+ */
+export function removeApiKey(envVar: string): void {
+  const config = loadConfig();
+  if (config.apiKeys) {
+    delete config.apiKeys[envVar];
+    saveConfig(config);
+  }
+}
+
+// ─── Endpoint Helpers ─────────────────────────────────────
+
+/**
+ * Get a stored custom endpoint URL from ~/.claudish/config.json
+ */
+export function getEndpoint(name: string): string | undefined {
+  const config = loadConfig();
+  return config.endpoints?.[name];
+}
+
+/**
+ * Store a custom endpoint URL in ~/.claudish/config.json
+ */
+export function setEndpoint(name: string, value: string): void {
+  const config = loadConfig();
+  if (!config.endpoints) config.endpoints = {};
+  config.endpoints[name] = value;
+  saveConfig(config);
+}
+
+/**
+ * Remove a stored custom endpoint from ~/.claudish/config.json
+ */
+export function removeEndpoint(name: string): void {
+  const config = loadConfig();
+  if (config.endpoints) {
+    delete config.endpoints[name];
+    saveConfig(config);
+  }
 }

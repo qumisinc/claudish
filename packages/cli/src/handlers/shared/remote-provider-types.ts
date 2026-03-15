@@ -38,17 +38,6 @@ export interface ModelPricing {
 }
 
 /**
- * Provider capabilities
- */
-export interface ProviderCapabilities {
-  supportsTools: boolean;
-  supportsVision: boolean;
-  supportsStreaming: boolean;
-  supportsJsonMode: boolean;
-  supportsReasoning: boolean;
-}
-
-/**
  * Remote provider definition (used by provider registry)
  */
 export interface RemoteProvider {
@@ -58,7 +47,6 @@ export interface RemoteProvider {
   apiKeyEnvVar: string;
   /** Prefixes that route to this provider (e.g., ["g/", "gemini/"]) */
   prefixes: string[];
-  capabilities: ProviderCapabilities;
   /** Optional custom headers */
   headers?: Record<string, string>;
   /** Auth scheme for the API key header (defaults to "x-api-key") */
