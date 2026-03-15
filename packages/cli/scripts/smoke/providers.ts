@@ -24,7 +24,7 @@ const REPRESENTATIVE_MODELS: Record<string, string> = {
   minimax: "minimax-m2.5",
   "minimax-coding": "minimax-m2.5",
   glm: "glm-5",
-  "glm-coding": "codegeex-4", // GLM coding plan representative model
+  "glm-coding": "glm-5", // GLM coding plan — codegeex-4 removed from API
   zai: "glm-5",
   openai: "gpt-4o-mini",
   openrouter: "openai/gpt-4o-mini", // stable model always available on OpenRouter
