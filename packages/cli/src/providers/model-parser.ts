@@ -205,6 +205,7 @@ export const LEGACY_PREFIX_PATTERNS: Array<{
   { prefix: "gemini/", provider: "google", stripPrefix: true },
   { prefix: "oai/", provider: "openai", stripPrefix: true },
   { prefix: "or/", provider: "openrouter", stripPrefix: true },
+  { prefix: "openrouter/", provider: "openrouter", stripPrefix: false },
   { prefix: "mmax/", provider: "minimax", stripPrefix: true },
   { prefix: "mm/", provider: "minimax", stripPrefix: true },
   { prefix: "mmc/", provider: "minimax-coding", stripPrefix: true },
