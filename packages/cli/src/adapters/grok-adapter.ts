@@ -140,6 +140,7 @@ export class GrokAdapter extends BaseModelAdapter {
 
   override getContextWindow(): number {
     const model = this.modelId.toLowerCase();
+    if (model.includes("grok-4.20") || model.includes("grok-4-20")) return 2_000_000;
     if (model.includes("grok-4.1-fast") || model.includes("grok-4-1-fast")) return 2_000_000;
     if (model.includes("grok-4-fast")) return 2_000_000;
     if (model.includes("grok-code-fast")) return 256_000;

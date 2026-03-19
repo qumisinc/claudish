@@ -70,8 +70,9 @@ export class OpenAIAdapter extends BaseModelAdapter {
     const model = this.modelId.toLowerCase();
 
     // OpenAI models
-    if (model.includes("gpt-5")) return 256_000;
-    if (model.includes("o1") || model.includes("o3")) return 200_000;
+    if (model.includes("gpt-5.4")) return 1_050_000;
+    if (model.includes("gpt-5")) return 400_000;
+    if (model.includes("o1") || model.includes("o3") || model.includes("o4")) return 200_000;
     if (model.includes("gpt-4o") || model.includes("gpt-4-turbo")) return 128_000;
     if (model.includes("gpt-3.5")) return 16_385;
 

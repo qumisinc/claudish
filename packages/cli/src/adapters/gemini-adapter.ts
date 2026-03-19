@@ -334,7 +334,7 @@ export class GeminiAdapter extends BaseModelAdapter {
   }
 
   override getContextWindow(): number {
-    return 1_000_000; // Gemini models have 1M context
+    return 1_048_576; // Gemini models have 1M context (2^20 tokens)
   }
 
   shouldHandle(modelId: string): boolean {

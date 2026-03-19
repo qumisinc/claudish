@@ -6,10 +6,12 @@
  * - OpenRouter-specific headers (HTTP-Referer, X-Title)
  * - OpenRouterRequestQueue for rate limiting
  * - openai-sse stream format
+ * - Context window lookup from cached OpenRouter model catalog
  */
 
 import type { ProviderTransport, StreamFormat } from "./types.js";
 import { OpenRouterRequestQueue } from "../../handlers/shared/openrouter-queue.js";
+import { getCachedOpenRouterModels } from "../../model-loader.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -20,9 +22,11 @@ export class OpenRouterProvider implements ProviderTransport {
 
   private apiKey: string;
   private queue: OpenRouterRequestQueue;
+  private modelId: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, modelId?: string) {
     this.apiKey = apiKey;
+    this.modelId = modelId || "";
     this.queue = OpenRouterRequestQueue.getInstance();
   }
 
@@ -48,5 +52,15 @@ export class OpenRouterProvider implements ProviderTransport {
 
   async enqueueRequest(fetchFn: () => Promise<Response>): Promise<Response> {
     return this.queue.enqueue(fetchFn);
+  }
+
+  /**
+   * Look up context window from the cached OpenRouter model catalog.
+   * The catalog is pre-warmed at startup via warmAllCatalogs().
+   */
+  getContextWindow(): number {
+    const models = this.modelId ? getCachedOpenRouterModels() : null;
+    const model = models?.find((m: any) => m.id === this.modelId);
+    return model?.context_length || model?.top_provider?.context_length || 200_000;
   }
 }

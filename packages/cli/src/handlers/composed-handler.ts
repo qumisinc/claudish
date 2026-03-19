@@ -281,10 +281,11 @@ export class ComposedHandler implements ModelHandler {
         });
         return c.json({ error: { type: "connection_error", message: err.message } }, 503 as any);
       }
-      // Update context window if provider dynamically discovered it
-      if (this.provider.getContextWindow) {
-        this.tokenTracker.setContextWindow(this.provider.getContextWindow());
-      }
+    }
+    // Update context window if provider dynamically discovered it
+    // (e.g., from OpenRouter model catalog or local model API)
+    if (this.provider.getContextWindow) {
+      this.tokenTracker.setContextWindow(this.provider.getContextWindow());
     }
 
     // 5c. Provider payload transformation (e.g., CodeAssist envelope wrapping)

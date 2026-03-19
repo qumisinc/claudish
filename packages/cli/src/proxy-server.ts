@@ -89,7 +89,7 @@ export async function createProxyServer(
     const modelId = targetModel.includes("@") ? parsed.model : targetModel;
 
     if (!openRouterHandlers.has(modelId)) {
-      const orProvider = new OpenRouterProvider(openrouterApiKey || "");
+      const orProvider = new OpenRouterProvider(openrouterApiKey || "", modelId);
       const orAdapter = new OpenRouterAdapter(modelId);
       openRouterHandlers.set(
         modelId,

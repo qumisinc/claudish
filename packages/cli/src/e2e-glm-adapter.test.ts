@@ -57,8 +57,8 @@ describe("GLMAdapter — Model Detection", () => {
 });
 
 describe("GLMAdapter — Context Windows", () => {
-  test("glm-5 → 200K", () => {
-    expect(new GLMAdapter("glm-5").getContextWindow()).toBe(204_800);
+  test("glm-5 → 80K", () => {
+    expect(new GLMAdapter("glm-5").getContextWindow()).toBe(80_000);
   });
 
   test("glm-4-plus → 128K", () => {
@@ -184,7 +184,7 @@ describe("Two-layer adapter — model adapter overrides provider adapter", () =>
 
     // Model adapter handles model-specific concerns
     expect(modelAdapter.getName()).toBe("GLMAdapter");
-    expect(modelAdapter.getContextWindow()).toBe(204_800);
+    expect(modelAdapter.getContextWindow()).toBe(80_000);
     expect(modelAdapter.supportsVision()).toBe(true);
   });
 
