@@ -241,7 +241,8 @@ function mergeUserSettingsIfPresent(
  */
 export async function runClaudeWithProxy(
   config: ClaudishConfig,
-  proxyUrl: string
+  proxyUrl: string,
+  onCleanup?: () => void
 ): Promise<number> {
   // Use actual OpenRouter model ID (no translation)
   // This ensures ANY model works, not just our shortlist
@@ -412,7 +413,7 @@ export async function runClaudeWithProxy(
   });
 
   // Handle process termination signals (includes cleanup)
-  setupSignalHandlers(proc, tempSettingsPath, config.quiet);
+  setupSignalHandlers(proc, tempSettingsPath, config.quiet, onCleanup);
 
   // Wait for claude to exit
   const exitCode = await new Promise<number>((resolve) => {
@@ -434,7 +435,12 @@ export async function runClaudeWithProxy(
 /**
  * Setup signal handlers to gracefully shutdown
  */
-function setupSignalHandlers(proc: ChildProcess, tempSettingsPath: string, quiet: boolean): void {
+function setupSignalHandlers(
+  proc: ChildProcess,
+  tempSettingsPath: string,
+  quiet: boolean,
+  onCleanup?: () => void
+): void {
   // Windows only supports SIGINT and SIGTERM reliably
   // SIGHUP doesn't exist on Windows
   const signals: NodeJS.Signals[] = isWindows()
@@ -447,6 +453,14 @@ function setupSignalHandlers(proc: ChildProcess, tempSettingsPath: string, quiet
         console.log(`\n[claudish] Received ${signal}, shutting down...`);
       }
       proc.kill();
+      // Run optional cleanup (e.g. close diag tmux pane) before exit
+      if (onCleanup) {
+        try {
+          onCleanup();
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
       // Clean up temp settings file
       try {
         unlinkSync(tempSettingsPath);

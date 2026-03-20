@@ -1,10 +1,12 @@
 import { writeFileSync, appendFile, existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import type { DiagOutput } from "./diag-output.js";
 
 let logFilePath: string | null = null;
 let logLevel: "debug" | "info" | "minimal" = "info"; // Default to structured logging
 let stderrQuiet = false; // When true, logStderr writes to log file only (no terminal output)
+let diagOutput: DiagOutput | null = null; // DiagOutput instance for routing stderr in interactive mode
 let logBuffer: string[] = []; // Buffer for async writes
 let flushTimer: NodeJS.Timeout | null = null;
 const FLUSH_INTERVAL_MS = 100; // Flush every 100ms
@@ -267,17 +269,31 @@ export function log(message: string, forceConsole = false): void {
  * Log a message to stderr and to the debug log file.
  * In quiet mode (interactive Claude Code sessions), only writes to log file
  * to avoid corrupting Claude Code's TUI display.
+ * When a DiagOutput is set, stderr messages are routed there instead.
  */
 export function logStderr(message: string): void {
-  if (!stderrQuiet) {
+  if (diagOutput) {
+    // Route to DiagOutput (file or tmux pane) instead of polluting stderr
+    diagOutput.write(message);
+  } else if (!stderrQuiet) {
     process.stderr.write(`[claudish] ${message}\n`);
   }
   log(message); // always write to debug log
 }
 
 /**
+ * Set the DiagOutput instance. When set, logStderr() routes to it
+ * instead of stderr. This replaces the stderrQuiet mechanism for
+ * interactive sessions.
+ */
+export function setDiagOutput(output: DiagOutput | null): void {
+  diagOutput = output;
+}
+
+/**
  * Suppress stderr output (for interactive Claude Code sessions where
  * stderr corrupts the TUI). Log file output is preserved.
+ * Kept for backwards compatibility — prefer setDiagOutput() for new code.
  */
 export function setStderrQuiet(quiet: boolean): void {
   stderrQuiet = quiet;
