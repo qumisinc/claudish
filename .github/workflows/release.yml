@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -52,7 +52,7 @@ jobs:
           bun build packages/cli/src/index.ts --compile --target=${{ matrix.target }} --outfile ${{ matrix.artifact }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
@@ -60,9 +60,11 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0  # Full history for generating release notes from commits
 
@@ -76,7 +78,7 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Install git-cliff
-        uses: kenji-miyake/setup-git-cliff@v2
+        uses: kenji-miyake/setup-git-cliff@v2  # no Node 24 version; covered by FORCE_JAVASCRIPT_ACTIONS_TO_NODE24
 
       - name: Generate release notes
         run: |
@@ -130,7 +132,7 @@ jobs:
           fi
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts
 
@@ -151,7 +153,7 @@ jobs:
           cat release/checksums.txt
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2  # no Node 24 version; covered by FORCE_JAVASCRIPT_ACTIONS_TO_NODE24
         with:
           name: v${{ steps.version.outputs.version }}
           body_path: release-notes.md
@@ -169,7 +171,7 @@ jobs:
     # Configure at: https://www.npmjs.com/package/claudish/access (Trusted Publishers)
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -177,7 +179,7 @@ jobs:
           bun-version: latest
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
@@ -219,9 +221,11 @@ jobs:
   deploy-landing-page:
     needs: release
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -235,7 +239,7 @@ jobs:
         run: cd landingpage && bun run build
 
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: FirebaseExtended/action-hosting-deploy@v0  # no Node 24 version; covered by FORCE_JAVASCRIPT_ACTIONS_TO_NODE24
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -268,7 +272,7 @@ jobs:
           echo "x64_sha=$X64_SHA" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: MadAppGang/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
