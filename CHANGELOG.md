@@ -2,6 +2,16 @@
 
 All notable changes to [Claudish](https://github.com/MadAppGang/claudish).
 
+## [6.0.0] - 2026-03-22
+
+### Documentation
+
+- update CHANGELOG.md for v5.19.0([`48c12f5`](https://github.com/MadAppGang/claudish/commit/48c12f5f9479bf121ba3763c992b697681591f02))
+
+### New Features
+
+- v6.0.0 - three-layer architecture rename (APIFormat / ModelDialect / ProviderTransport)([`14efceb`](https://github.com/MadAppGang/claudish/commit/14efceb0fdb819f07180bcef7540eab7d7f7fe05))
+
 ## [5.19.0] - 2026-03-22
 
 ### Bug Fixes
