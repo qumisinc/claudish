@@ -1,13 +1,13 @@
 /**
- * ModelTranslator — translates model-specific dialect differences.
+ * ModelDialect — translates model-specific dialect differences.
  *
  * Each model family has its own dialect: context window sizes, parameter mappings
  * (thinking → reasoning_effort), vision support rules, tool name limits.
- * These are NOT format differences (those are FormatConverter's job) but
+ * These are NOT format differences (those are APIFormat's job) but
  * per-model behavioral translations.
  */
 
-export interface ModelTranslator {
+export interface ModelDialect {
   /** Context window size for this model (tokens) */
   getContextWindow(): number;
 
@@ -24,9 +24,9 @@ export interface ModelTranslator {
   /** Maximum tool name length, or null if unlimited */
   getToolNameLimit(): number | null;
 
-  /** Check if this translator handles the given model ID */
+  /** Check if this dialect handles the given model ID */
   shouldHandle(modelId: string): boolean;
 
-  /** Translator name for logging */
+  /** Dialect name for logging */
   getName(): string;
 }

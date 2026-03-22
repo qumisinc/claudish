@@ -18,7 +18,7 @@ import { log } from "../../logger.js";
 const CODE_ASSIST_ENDPOINT =
   "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse";
 
-export class GeminiCodeAssistProvider implements ProviderTransport {
+export class GeminiCodeAssistProviderTransport implements ProviderTransport {
   readonly name = "gemini-codeassist";
   readonly displayName = "Gemini Free";
   readonly streamFormat: StreamFormat = "gemini-sse";
@@ -75,3 +75,7 @@ export class GeminiCodeAssistProvider implements ProviderTransport {
     return queue.enqueue(fetchFn);
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use GeminiCodeAssistProviderTransport */
+export { GeminiCodeAssistProviderTransport as GeminiCodeAssistProvider };

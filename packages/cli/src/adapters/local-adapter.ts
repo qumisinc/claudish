@@ -11,8 +11,8 @@
  * - MLX simple format for message conversion
  */
 
-import { BaseModelAdapter, type AdapterResult } from "./base-adapter.js";
-import { AdapterManager } from "./adapter-manager.js";
+import { BaseAPIFormat, type AdapterResult } from "./base-api-format.js";
+import { DialectManager } from "./dialect-manager.js";
 import { log } from "../logger.js";
 
 interface SamplingParams {
@@ -23,15 +23,15 @@ interface SamplingParams {
   repetition_penalty: number;
 }
 
-export class LocalModelAdapter extends BaseModelAdapter {
-  private innerAdapter: BaseModelAdapter;
+export class LocalModelAdapter extends BaseAPIFormat {
+  private innerAdapter: BaseAPIFormat;
   private providerName: string;
 
   constructor(modelId: string, providerName: string) {
     super(modelId);
     this.providerName = providerName;
 
-    const manager = new AdapterManager(modelId);
+    const manager = new DialectManager(modelId);
     this.innerAdapter = manager.getAdapter();
   }
 

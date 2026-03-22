@@ -1,5 +1,5 @@
 /**
- * OllamaCloud Adapter
+ * OllamaAPIFormat — Layer 1 wire format for OllamaCloud API.
  *
  * Converts Claude messages to OllamaCloud's simple format:
  * - All content reduced to plain strings (no structured blocks)
@@ -8,10 +8,10 @@
  * - No tool schema support
  */
 
-import { BaseModelAdapter, type AdapterResult } from "./base-adapter.js";
+import { BaseAPIFormat, type AdapterResult } from "./base-api-format.js";
 import type { StreamFormat } from "../providers/transport/types.js";
 
-export class OllamaCloudAdapter extends BaseModelAdapter {
+export class OllamaAPIFormat extends BaseAPIFormat {
   constructor(modelId: string) {
     super(modelId);
   }
@@ -29,7 +29,7 @@ export class OllamaCloudAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "OllamaCloudAdapter";
+    return "OllamaAPIFormat";
   }
 
   /**
@@ -125,3 +125,7 @@ export class OllamaCloudAdapter extends BaseModelAdapter {
     return { role: "assistant", content: msg.content };
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use OllamaAPIFormat */
+export { OllamaAPIFormat as OllamaCloudAdapter };

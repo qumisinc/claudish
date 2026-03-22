@@ -149,8 +149,8 @@ describe("OpenAI SSE → Claude SSE (createStreamingResponseHandler)", () => {
   }
 
   async function getDefaultAdapter() {
-    const mod = await import("./adapters/base-adapter.js");
-    return new mod.DefaultAdapter("test-model");
+    const mod = await import("./adapters/base-api-format.js");
+    return new mod.DefaultAPIFormat("test-model");
   }
 
   test("SEED: text-only response produces text events and stop_reason=end_turn", async () => {
@@ -334,15 +334,15 @@ describe("Adapter: convertMessagesToOpenAI", () => {
   });
 });
 
-describe("Adapter: AnthropicPassthroughAdapter", () => {
+describe("Adapter: AnthropicAPIFormat", () => {
   async function getAdapter() {
-    const mod = await import("./adapters/anthropic-passthrough-adapter.js");
-    return mod.AnthropicPassthroughAdapter;
+    const mod = await import("./adapters/anthropic-api-format.js");
+    return mod.AnthropicAPIFormat;
   }
 
   test("passes messages through without OpenAI conversion", async () => {
-    const AnthropicPassthroughAdapter = await getAdapter();
-    const adapter = new AnthropicPassthroughAdapter("test-model", "minimax");
+    const AnthropicAPIFormat = await getAdapter();
+    const adapter = new AnthropicAPIFormat("test-model", "minimax");
 
     const claudeRequest = {
       messages: [
@@ -362,8 +362,8 @@ describe("Adapter: AnthropicPassthroughAdapter", () => {
   });
 
   test("strips tool_reference content types", async () => {
-    const AnthropicPassthroughAdapter = await getAdapter();
-    const adapter = new AnthropicPassthroughAdapter("test-model", "kimi");
+    const AnthropicAPIFormat = await getAdapter();
+    const adapter = new AnthropicAPIFormat("test-model", "kimi");
 
     const claudeRequest = {
       messages: [
@@ -387,8 +387,8 @@ describe("Adapter: AnthropicPassthroughAdapter", () => {
   });
 
   test("builds Anthropic-format payload (not OpenAI)", async () => {
-    const AnthropicPassthroughAdapter = await getAdapter();
-    const adapter = new AnthropicPassthroughAdapter("minimax-m2.5", "minimax");
+    const AnthropicAPIFormat = await getAdapter();
+    const adapter = new AnthropicAPIFormat("minimax-m2.5", "minimax");
 
     const claudeRequest = {
       model: "claude-3-opus",
@@ -418,8 +418,8 @@ describe("Adapter: AnthropicPassthroughAdapter", () => {
 
 describe("Model Adapter Quirks", () => {
   test("MiniMaxAdapter: thinking → reasoning_split", async () => {
-    const { MiniMaxAdapter } = await import("./adapters/minimax-adapter.js");
-    const adapter = new MiniMaxAdapter("minimax-m2.5");
+    const { MiniMaxModelDialect } = await import("./adapters/minimax-model-dialect.js");
+    const adapter = new MiniMaxModelDialect("minimax-m2.5");
 
     const request: any = { model: "minimax-m2.5", messages: [] };
     const original = { thinking: { budget_tokens: 10000 } };
@@ -430,8 +430,8 @@ describe("Model Adapter Quirks", () => {
   });
 
   test("OpenAIAdapter: thinking → reasoning_effort for o3", async () => {
-    const { OpenAIAdapter } = await import("./adapters/openai-adapter.js");
-    const adapter = new OpenAIAdapter("o3-mini");
+    const { OpenAIAPIFormat } = await import("./adapters/openai-api-format.js");
+    const adapter = new OpenAIAPIFormat("o3-mini");
 
     const request: any = { model: "o3-mini", messages: [] };
     const original = { thinking: { budget_tokens: 32000 } };
@@ -442,8 +442,8 @@ describe("Model Adapter Quirks", () => {
   });
 
   test("GLMAdapter: strips thinking params", async () => {
-    const { GLMAdapter } = await import("./adapters/glm-adapter.js");
-    const adapter = new GLMAdapter("glm-5");
+    const { GLMModelDialect } = await import("./adapters/glm-model-dialect.js");
+    const adapter = new GLMModelDialect("glm-5");
 
     const request: any = { model: "glm-5", messages: [], thinking: { budget_tokens: 10000 } };
     const original = { thinking: { budget_tokens: 10000 } };
@@ -453,93 +453,93 @@ describe("Model Adapter Quirks", () => {
   });
 
   test("AdapterManager selects correct adapter for model IDs", async () => {
-    const { AdapterManager } = await import("./adapters/adapter-manager.js");
+    const { DialectManager } = await import("./adapters/dialect-manager.js");
 
-    expect(new AdapterManager("glm-5").getAdapter().getName()).toBe("GLMAdapter");
-    expect(new AdapterManager("grok-3").getAdapter().getName()).toBe("GrokAdapter");
-    expect(new AdapterManager("minimax-m2.5").getAdapter().getName()).toBe("MiniMaxAdapter");
-    expect(new AdapterManager("qwen3.5-plus").getAdapter().getName()).toBe("QwenAdapter");
-    expect(new AdapterManager("deepseek-r1").getAdapter().getName()).toBe("DeepSeekAdapter");
-    expect(new AdapterManager("unknown-model").getAdapter().getName()).toBe("DefaultAdapter");
+    expect(new DialectManager("glm-5").getAdapter().getName()).toBe("GLMModelDialect");
+    expect(new DialectManager("grok-3").getAdapter().getName()).toBe("GrokModelDialect");
+    expect(new DialectManager("minimax-m2.5").getAdapter().getName()).toBe("MiniMaxModelDialect");
+    expect(new DialectManager("qwen3.5-plus").getAdapter().getName()).toBe("QwenModelDialect");
+    expect(new DialectManager("deepseek-r1").getAdapter().getName()).toBe("DeepSeekModelDialect");
+    expect(new DialectManager("unknown-model").getAdapter().getName()).toBe("DefaultAPIFormat");
   });
 });
 
-// ─── FormatConverter: getStreamFormat() Tests ────────────────────────────────
+// ─── APIFormat: getStreamFormat() Tests ──────────────────────────────────────
 
-describe("FormatConverter: getStreamFormat()", () => {
-  test("DefaultAdapter returns openai-sse", async () => {
-    const { DefaultAdapter } = await import("./adapters/base-adapter.js");
-    expect(new DefaultAdapter("test").getStreamFormat()).toBe("openai-sse");
+describe("APIFormat: getStreamFormat()", () => {
+  test("DefaultAPIFormat returns openai-sse", async () => {
+    const { DefaultAPIFormat } = await import("./adapters/base-api-format.js");
+    expect(new DefaultAPIFormat("test").getStreamFormat()).toBe("openai-sse");
   });
 
-  test("AnthropicPassthroughAdapter returns anthropic-sse", async () => {
-    const { AnthropicPassthroughAdapter } = await import(
-      "./adapters/anthropic-passthrough-adapter.js"
+  test("AnthropicAPIFormat returns anthropic-sse", async () => {
+    const { AnthropicAPIFormat } = await import(
+      "./adapters/anthropic-api-format.js"
     );
-    expect(new AnthropicPassthroughAdapter("test", "minimax").getStreamFormat()).toBe(
+    expect(new AnthropicAPIFormat("test", "minimax").getStreamFormat()).toBe(
       "anthropic-sse"
     );
   });
 
-  test("GeminiAdapter returns gemini-sse", async () => {
-    const { GeminiAdapter } = await import("./adapters/gemini-adapter.js");
-    expect(new GeminiAdapter("gemini-2.0-flash").getStreamFormat()).toBe("gemini-sse");
+  test("GeminiAPIFormat returns gemini-sse", async () => {
+    const { GeminiAPIFormat } = await import("./adapters/gemini-api-format.js");
+    expect(new GeminiAPIFormat("gemini-2.0-flash").getStreamFormat()).toBe("gemini-sse");
   });
 
-  test("OllamaCloudAdapter returns ollama-jsonl", async () => {
-    const { OllamaCloudAdapter } = await import("./adapters/ollamacloud-adapter.js");
-    expect(new OllamaCloudAdapter("llama3.2").getStreamFormat()).toBe("ollama-jsonl");
+  test("OllamaAPIFormat returns ollama-jsonl", async () => {
+    const { OllamaAPIFormat } = await import("./adapters/ollama-api-format.js");
+    expect(new OllamaAPIFormat("llama3.2").getStreamFormat()).toBe("ollama-jsonl");
   });
 
-  test("OpenAIAdapter returns openai-sse for GPT models", async () => {
-    const { OpenAIAdapter } = await import("./adapters/openai-adapter.js");
-    expect(new OpenAIAdapter("gpt-5.4").getStreamFormat()).toBe("openai-sse");
+  test("OpenAIAPIFormat returns openai-sse for GPT models", async () => {
+    const { OpenAIAPIFormat } = await import("./adapters/openai-api-format.js");
+    expect(new OpenAIAPIFormat("gpt-5.4").getStreamFormat()).toBe("openai-sse");
   });
 
-  test("CodexAdapter returns openai-responses-sse", async () => {
-    const { CodexAdapter } = await import("./adapters/codex-adapter.js");
-    expect(new CodexAdapter("codex-mini").getStreamFormat()).toBe("openai-responses-sse");
+  test("CodexAPIFormat returns openai-responses-sse", async () => {
+    const { CodexAPIFormat } = await import("./adapters/codex-api-format.js");
+    expect(new CodexAPIFormat("codex-mini").getStreamFormat()).toBe("openai-responses-sse");
   });
 
-  test("GLMAdapter inherits openai-sse (uses OpenAI-compat API)", async () => {
-    const { GLMAdapter } = await import("./adapters/glm-adapter.js");
-    expect(new GLMAdapter("glm-5").getStreamFormat()).toBe("openai-sse");
+  test("GLMModelDialect inherits openai-sse (uses OpenAI-compat API)", async () => {
+    const { GLMModelDialect } = await import("./adapters/glm-model-dialect.js");
+    expect(new GLMModelDialect("glm-5").getStreamFormat()).toBe("openai-sse");
   });
 });
 
 describe("CodexAdapter", () => {
   test("shouldHandle returns true for codex models", async () => {
-    const { CodexAdapter } = await import("./adapters/codex-adapter.js");
-    expect(new CodexAdapter("codex-mini").shouldHandle("codex-mini")).toBe(true);
-    expect(new CodexAdapter("codex-mini").shouldHandle("codex-davinci-002")).toBe(true);
+    const { CodexAPIFormat } = await import("./adapters/codex-api-format.js");
+    expect(new CodexAPIFormat("codex-mini").shouldHandle("codex-mini")).toBe(true);
+    expect(new CodexAPIFormat("codex-mini").shouldHandle("codex-davinci-002")).toBe(true);
   });
 
   test("shouldHandle returns false for non-codex models", async () => {
-    const { CodexAdapter } = await import("./adapters/codex-adapter.js");
-    expect(new CodexAdapter("gpt-5.4").shouldHandle("gpt-5.4")).toBe(false);
-    expect(new CodexAdapter("o3").shouldHandle("o3")).toBe(false);
+    const { CodexAPIFormat } = await import("./adapters/codex-api-format.js");
+    expect(new CodexAPIFormat("gpt-5.4").shouldHandle("gpt-5.4")).toBe(false);
+    expect(new CodexAPIFormat("o3").shouldHandle("o3")).toBe(false);
   });
 
   test("getStreamFormat returns openai-responses-sse", async () => {
-    const { CodexAdapter } = await import("./adapters/codex-adapter.js");
-    expect(new CodexAdapter("codex-mini").getStreamFormat()).toBe("openai-responses-sse");
+    const { CodexAPIFormat } = await import("./adapters/codex-api-format.js");
+    expect(new CodexAPIFormat("codex-mini").getStreamFormat()).toBe("openai-responses-sse");
   });
 
-  test("getName returns CodexAdapter", async () => {
-    const { CodexAdapter } = await import("./adapters/codex-adapter.js");
-    expect(new CodexAdapter("codex-mini").getName()).toBe("CodexAdapter");
+  test("getName returns CodexAPIFormat", async () => {
+    const { CodexAPIFormat } = await import("./adapters/codex-api-format.js");
+    expect(new CodexAPIFormat("codex-mini").getName()).toBe("CodexAPIFormat");
   });
 
-  test("AdapterManager selects CodexAdapter for codex-mini", async () => {
-    const { AdapterManager } = await import("./adapters/adapter-manager.js");
-    expect(new AdapterManager("codex-mini").getAdapter().getName()).toBe("CodexAdapter");
+  test("AdapterManager selects CodexAPIFormat for codex-mini", async () => {
+    const { DialectManager } = await import("./adapters/dialect-manager.js");
+    expect(new DialectManager("codex-mini").getAdapter().getName()).toBe("CodexAPIFormat");
   });
 });
 
-describe("ModelTranslator interface compliance", () => {
+describe("ModelDialect interface compliance", () => {
   test("GLMAdapter implements translator methods", async () => {
-    const { GLMAdapter } = await import("./adapters/glm-adapter.js");
-    const t = new GLMAdapter("glm-5");
+    const { GLMModelDialect } = await import("./adapters/glm-model-dialect.js");
+    const t = new GLMModelDialect("glm-5");
     expect(typeof t.getContextWindow()).toBe("number");
     expect(typeof t.supportsVision()).toBe("boolean");
     expect(typeof t.prepareRequest).toBe("function");
@@ -586,7 +586,7 @@ describe("ProviderProfile table completeness", () => {
 // describe("Regression: <model> - <issue description>", () => {
 //   test("text content reaches output", async () => {
 //     const parser = (await import("./handlers/shared/openai-compat.js")).createStreamingResponseHandler;
-//     const adapter = new (await import("./adapters/base-adapter.js")).DefaultAdapter("<model>");
+//     const adapter = new (await import("./adapters/base-api-format.js")).DefaultAdapter("<model>");
 //     const fixture = fixtureToResponse(join(FIXTURES_DIR, "<model>-openai-turn1.sse"));
 //     const ctx = createMockContext();
 //     const response = parser(ctx, fixture, adapter, "<model>", null);

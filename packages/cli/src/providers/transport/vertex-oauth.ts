@@ -38,7 +38,7 @@ export function parseVertexModel(modelId: string): ParsedVertexModel {
   return { publisher: parts[0], model: parts.slice(1).join("/") };
 }
 
-export class VertexOAuthProvider implements ProviderTransport {
+export class VertexProviderTransport implements ProviderTransport {
   readonly name = "vertex";
   readonly displayName = "Vertex AI";
   readonly streamFormat: StreamFormat;
@@ -115,3 +115,7 @@ export class VertexOAuthProvider implements ProviderTransport {
     return this.parsed;
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use VertexProviderTransport */
+export { VertexProviderTransport as VertexOAuthProvider };

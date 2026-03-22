@@ -1,24 +1,24 @@
 /**
- * E2E tests for GLM adapter and two-layer adapter architecture.
+ * E2E tests for GLM dialect and three-layer adapter architecture.
  *
  * Validates:
- * 1. GLMAdapter model detection, context windows, and vision support
- * 2. AdapterManager correctly selects GLMAdapter for GLM models
- * 3. ComposedHandler two-layer architecture — model adapter provides model-specific
- *    overrides (context window, vision, prepareRequest) even when a provider adapter
- *    (LiteLLMAdapter, OpenRouterAdapter) is set as the explicit adapter
+ * 1. GLMModelDialect model detection, context windows, and vision support
+ * 2. DialectManager correctly selects GLMModelDialect for GLM models
+ * 3. ComposedHandler three-layer architecture — model dialect provides model-specific
+ *    overrides (context window, vision, prepareRequest) even when a provider format
+ *    (LiteLLMAPIFormat, OpenRouterAPIFormat) is set as the explicit adapter
  */
 
 import { describe, test, expect } from "bun:test";
-import { GLMAdapter } from "./adapters/glm-adapter.js";
-import { AdapterManager } from "./adapters/adapter-manager.js";
-import { LiteLLMAdapter } from "./adapters/litellm-adapter.js";
-import { DefaultAdapter } from "./adapters/base-adapter.js";
+import { GLMModelDialect } from "./adapters/glm-model-dialect.js";
+import { DialectManager } from "./adapters/dialect-manager.js";
+import { LiteLLMAPIFormat } from "./adapters/litellm-api-format.js";
+import { DefaultAPIFormat } from "./adapters/base-api-format.js";
 
-// ─── Group 1: GLMAdapter unit tests ──────────────────────────────────────────
+// ─── Group 1: GLMModelDialect unit tests ─────────────────────────────────────
 
-describe("GLMAdapter — Model Detection", () => {
-  const adapter = new GLMAdapter("glm-5");
+describe("GLMModelDialect — Model Detection", () => {
+  const adapter = new GLMModelDialect("glm-5");
 
   test("should handle glm-5", () => {
     expect(adapter.shouldHandle("glm-5")).toBe(true);
@@ -52,57 +52,57 @@ describe("GLMAdapter — Model Detection", () => {
   });
 
   test("should return correct adapter name", () => {
-    expect(adapter.getName()).toBe("GLMAdapter");
+    expect(adapter.getName()).toBe("GLMModelDialect");
   });
 });
 
-describe("GLMAdapter — Context Windows", () => {
+describe("GLMModelDialect — Context Windows", () => {
   test("glm-5 → 80K", () => {
-    expect(new GLMAdapter("glm-5").getContextWindow()).toBe(80_000);
+    expect(new GLMModelDialect("glm-5").getContextWindow()).toBe(80_000);
   });
 
   test("glm-4-plus → 128K", () => {
-    expect(new GLMAdapter("glm-4-plus").getContextWindow()).toBe(128_000);
+    expect(new GLMModelDialect("glm-4-plus").getContextWindow()).toBe(128_000);
   });
 
   test("glm-4-long → 1M", () => {
-    expect(new GLMAdapter("glm-4-long").getContextWindow()).toBe(1_000_000);
+    expect(new GLMModelDialect("glm-4-long").getContextWindow()).toBe(1_000_000);
   });
 
   test("glm-4-flash → 128K", () => {
-    expect(new GLMAdapter("glm-4-flash").getContextWindow()).toBe(128_000);
+    expect(new GLMModelDialect("glm-4-flash").getContextWindow()).toBe(128_000);
   });
 
   test("unknown glm variant → 131K default (glm- catch-all)", () => {
-    expect(new GLMAdapter("glm-99").getContextWindow()).toBe(131_072);
+    expect(new GLMModelDialect("glm-99").getContextWindow()).toBe(131_072);
   });
 });
 
-describe("GLMAdapter — Vision Support", () => {
+describe("GLMModelDialect — Vision Support", () => {
   test("glm-5 supports vision", () => {
-    expect(new GLMAdapter("glm-5").supportsVision()).toBe(true);
+    expect(new GLMModelDialect("glm-5").supportsVision()).toBe(true);
   });
 
   test("glm-4v supports vision", () => {
-    expect(new GLMAdapter("glm-4v").supportsVision()).toBe(true);
+    expect(new GLMModelDialect("glm-4v").supportsVision()).toBe(true);
   });
 
   test("glm-4v-plus supports vision", () => {
-    expect(new GLMAdapter("glm-4v-plus").supportsVision()).toBe(true);
+    expect(new GLMModelDialect("glm-4v-plus").supportsVision()).toBe(true);
   });
 
   test("glm-4-flash does NOT support vision", () => {
-    expect(new GLMAdapter("glm-4-flash").supportsVision()).toBe(false);
+    expect(new GLMModelDialect("glm-4-flash").supportsVision()).toBe(false);
   });
 
   test("glm-3-turbo does NOT support vision", () => {
-    expect(new GLMAdapter("glm-3-turbo").supportsVision()).toBe(false);
+    expect(new GLMModelDialect("glm-3-turbo").supportsVision()).toBe(false);
   });
 });
 
-describe("GLMAdapter — prepareRequest", () => {
+describe("GLMModelDialect — prepareRequest", () => {
   test("strips thinking param from request", () => {
-    const adapter = new GLMAdapter("glm-5");
+    const adapter = new GLMModelDialect("glm-5");
     const request = { model: "glm-5", thinking: { budget: 10000 }, messages: [] };
     const original = { thinking: { budget: 10000 } };
 
@@ -112,7 +112,7 @@ describe("GLMAdapter — prepareRequest", () => {
   });
 
   test("leaves request unchanged without thinking param", () => {
-    const adapter = new GLMAdapter("glm-5");
+    const adapter = new GLMModelDialect("glm-5");
     const request = { model: "glm-5", messages: [] };
     const original = {};
 
@@ -123,9 +123,9 @@ describe("GLMAdapter — prepareRequest", () => {
   });
 });
 
-describe("GLMAdapter — processTextContent", () => {
+describe("GLMModelDialect — processTextContent", () => {
   test("passes through text unchanged (no transformation)", () => {
-    const adapter = new GLMAdapter("glm-5");
+    const adapter = new GLMModelDialect("glm-5");
     const result = adapter.processTextContent("Hello, world!", "");
 
     expect(result.cleanedText).toBe("Hello, world!");
@@ -134,104 +134,104 @@ describe("GLMAdapter — processTextContent", () => {
   });
 });
 
-// ─── Group 2: AdapterManager selects GLMAdapter ──────────────────────────────
+// ─── Group 2: DialectManager selects GLMModelDialect ─────────────────────────
 
-describe("AdapterManager — GLM routing", () => {
-  test("selects GLMAdapter for glm-5", () => {
-    const manager = new AdapterManager("glm-5");
+describe("DialectManager — GLM routing", () => {
+  test("selects GLMModelDialect for glm-5", () => {
+    const manager = new DialectManager("glm-5");
     const adapter = manager.getAdapter();
 
-    expect(adapter.getName()).toBe("GLMAdapter");
+    expect(adapter.getName()).toBe("GLMModelDialect");
   });
 
-  test("selects GLMAdapter for glm-4-long", () => {
-    const manager = new AdapterManager("glm-4-long");
+  test("selects GLMModelDialect for glm-4-long", () => {
+    const manager = new DialectManager("glm-4-long");
     const adapter = manager.getAdapter();
 
-    expect(adapter.getName()).toBe("GLMAdapter");
+    expect(adapter.getName()).toBe("GLMModelDialect");
   });
 
-  test("does NOT select GLMAdapter for gpt-4o", () => {
-    const manager = new AdapterManager("gpt-4o");
+  test("does NOT select GLMModelDialect for gpt-4o", () => {
+    const manager = new DialectManager("gpt-4o");
     const adapter = manager.getAdapter();
 
-    expect(adapter.getName()).not.toBe("GLMAdapter");
+    expect(adapter.getName()).not.toBe("GLMModelDialect");
   });
 
   test("needsTransformation returns true for GLM models", () => {
-    const manager = new AdapterManager("glm-5");
+    const manager = new DialectManager("glm-5");
     expect(manager.needsTransformation()).toBe(true);
   });
 });
 
-// ─── Group 3: Two-layer adapter architecture ─────────────────────────────────
+// ─── Group 3: Three-layer adapter architecture ───────────────────────────────
 //
-// When a provider adapter (LiteLLMAdapter) is the explicit adapter, the model
-// adapter (GLMAdapter) should still be resolved by AdapterManager for model-
-// specific concerns.
+// When a format adapter (LiteLLMAPIFormat) is the explicit adapter, the model
+// dialect (GLMModelDialect) should still be resolved by DialectManager for
+// model-specific concerns.
 
-describe("Two-layer adapter — model adapter overrides provider adapter", () => {
-  test("AdapterManager resolves GLMAdapter even when LiteLLMAdapter would be used", () => {
+describe("Three-layer adapter — model dialect overrides format adapter", () => {
+  test("DialectManager resolves GLMModelDialect even when LiteLLMAPIFormat would be used", () => {
     // Simulate what ComposedHandler does:
-    // 1. Explicit adapter = LiteLLMAdapter (provider transport)
-    // 2. AdapterManager.getAdapter() = GLMAdapter (model quirks)
-    const litellmAdapter = new LiteLLMAdapter("glm-5", "https://example.com");
-    const adapterManager = new AdapterManager("glm-5");
+    // 1. Explicit adapter = LiteLLMAPIFormat (L1 wire format)
+    // 2. DialectManager.getAdapter() = GLMModelDialect (L2 model quirks)
+    const litellmAdapter = new LiteLLMAPIFormat("glm-5", "https://example.com");
+    const adapterManager = new DialectManager("glm-5");
     const modelAdapter = adapterManager.getAdapter();
 
-    // Provider adapter handles transport
-    expect(litellmAdapter.getName()).toBe("LiteLLMAdapter");
+    // Format adapter handles wire format / transport
+    expect(litellmAdapter.getName()).toBe("LiteLLMAPIFormat");
 
-    // Model adapter handles model-specific concerns
-    expect(modelAdapter.getName()).toBe("GLMAdapter");
+    // Model dialect handles model-specific concerns
+    expect(modelAdapter.getName()).toBe("GLMModelDialect");
     expect(modelAdapter.getContextWindow()).toBe(80_000);
     expect(modelAdapter.supportsVision()).toBe(true);
   });
 
-  test("LiteLLMAdapter returns generic defaults (model adapter should override)", () => {
-    const litellmAdapter = new LiteLLMAdapter("glm-5", "https://example.com");
+  test("LiteLLMAPIFormat returns generic defaults (model adapter should override)", () => {
+    const litellmAdapter = new LiteLLMAPIFormat("glm-5", "https://example.com");
 
-    // LiteLLMAdapter returns generic 200K — model adapter should win
+    // LiteLLMAPIFormat returns generic 200K — model adapter should win
     expect(litellmAdapter.getContextWindow()).toBe(200_000);
   });
 
-  test("model adapter provides correct context window for glm-4-long via LiteLLM", () => {
-    const adapterManager = new AdapterManager("glm-4-long");
+  test("model dialect provides correct context window for glm-4-long via LiteLLM", () => {
+    const adapterManager = new DialectManager("glm-4-long");
     const modelAdapter = adapterManager.getAdapter();
 
-    expect(modelAdapter.getName()).toBe("GLMAdapter");
+    expect(modelAdapter.getName()).toBe("GLMModelDialect");
     expect(modelAdapter.getContextWindow()).toBe(1_000_000);
   });
 
-  test("model adapter correctly reports no vision for glm-4-flash via LiteLLM", () => {
-    const adapterManager = new AdapterManager("glm-4-flash");
+  test("model dialect correctly reports no vision for glm-4-flash via LiteLLM", () => {
+    const adapterManager = new DialectManager("glm-4-flash");
     const modelAdapter = adapterManager.getAdapter();
 
-    expect(modelAdapter.getName()).toBe("GLMAdapter");
+    expect(modelAdapter.getName()).toBe("GLMModelDialect");
     expect(modelAdapter.supportsVision()).toBe(false);
   });
 
-  test("non-GLM model via LiteLLM falls back to DefaultAdapter", () => {
-    const adapterManager = new AdapterManager("some-unknown-model");
+  test("non-GLM model via LiteLLM falls back to DefaultAPIFormat", () => {
+    const adapterManager = new DialectManager("some-unknown-model");
     const modelAdapter = adapterManager.getAdapter();
 
-    // Should be DefaultAdapter, not GLMAdapter
-    expect(modelAdapter.getName()).toBe("DefaultAdapter");
+    // Should be DefaultAPIFormat, not GLMModelDialect
+    expect(modelAdapter.getName()).toBe("DefaultAPIFormat");
   });
 
-  test("model adapter strips thinking, provider adapter does not", () => {
-    const litellmAdapter = new LiteLLMAdapter("glm-5", "https://example.com");
-    const adapterManager = new AdapterManager("glm-5");
+  test("model dialect strips thinking, format adapter does not", () => {
+    const litellmAdapter = new LiteLLMAPIFormat("glm-5", "https://example.com");
+    const adapterManager = new DialectManager("glm-5");
     const modelAdapter = adapterManager.getAdapter();
 
-    // Provider adapter does not strip thinking (no override)
+    // Format adapter does not strip thinking (no override)
     const request1 = { model: "glm-5", thinking: { budget: 10000 }, messages: [] };
     litellmAdapter.prepareRequest(request1, { thinking: { budget: 10000 } });
-    expect(request1.thinking).toBeDefined(); // LiteLLMAdapter doesn't touch thinking
+    expect(request1.thinking).toBeDefined(); // LiteLLMAPIFormat doesn't touch thinking
 
-    // Model adapter strips thinking
+    // Model dialect strips thinking
     const request2 = { model: "glm-5", thinking: { budget: 10000 }, messages: [] };
     modelAdapter.prepareRequest(request2, { thinking: { budget: 10000 } });
-    expect(request2.thinking).toBeUndefined(); // GLMAdapter strips it
+    expect(request2.thinking).toBeUndefined(); // GLMModelDialect strips it
   });
 });

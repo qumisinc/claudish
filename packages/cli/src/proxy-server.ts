@@ -4,26 +4,26 @@ import { serve } from "@hono/node-server";
 import { log, logStderr, isLoggingEnabled } from "./logger.js";
 import type { ProxyServer } from "./types.js";
 import { NativeHandler } from "./handlers/native-handler.js";
-import { OpenRouterProvider } from "./providers/transport/openrouter.js";
-import { OpenRouterAdapter } from "./adapters/openrouter-adapter.js";
+import { OpenRouterProviderTransport } from "./providers/transport/openrouter.js";
+import { OpenRouterAPIFormat } from "./adapters/openrouter-api-format.js";
 import { LocalTransport } from "./providers/transport/local.js";
 import { LocalModelAdapter } from "./adapters/local-adapter.js";
-import { GeminiApiKeyProvider } from "./providers/transport/gemini-apikey.js";
-import { GeminiCodeAssistProvider } from "./providers/transport/gemini-codeassist.js";
-import { GeminiAdapter } from "./adapters/gemini-adapter.js";
-import { VertexOAuthProvider, parseVertexModel } from "./providers/transport/vertex-oauth.js";
-import { DefaultAdapter } from "./adapters/base-adapter.js";
+import { GeminiProviderTransport } from "./providers/transport/gemini-apikey.js";
+import { GeminiCodeAssistProviderTransport } from "./providers/transport/gemini-codeassist.js";
+import { GeminiAPIFormat } from "./adapters/gemini-api-format.js";
+import { VertexProviderTransport, parseVertexModel } from "./providers/transport/vertex-oauth.js";
+import { DefaultAPIFormat } from "./adapters/base-api-format.js";
 import { PoeProvider } from "./providers/transport/poe.js";
 import type { ModelHandler } from "./handlers/types.js";
 import { ComposedHandler, type ComposedHandlerOptions } from "./handlers/composed-handler.js";
-import { LiteLLMProvider } from "./providers/transport/litellm.js";
-import { LiteLLMAdapter } from "./adapters/litellm-adapter.js";
-import { OpenAIProvider } from "./providers/transport/openai.js";
-import { OpenAIAdapter } from "./adapters/openai-adapter.js";
-import { AnthropicCompatProvider } from "./providers/transport/anthropic-compat.js";
-import { AnthropicPassthroughAdapter } from "./adapters/anthropic-passthrough-adapter.js";
-import { OllamaCloudProvider } from "./providers/transport/ollamacloud.js";
-import { OllamaCloudAdapter } from "./adapters/ollamacloud-adapter.js";
+import { LiteLLMProviderTransport } from "./providers/transport/litellm.js";
+import { LiteLLMAPIFormat } from "./adapters/litellm-api-format.js";
+import { OpenAIProviderTransport } from "./providers/transport/openai.js";
+import { OpenAIAPIFormat } from "./adapters/openai-api-format.js";
+import { AnthropicProviderTransport } from "./providers/transport/anthropic-compat.js";
+import { AnthropicAPIFormat } from "./adapters/anthropic-api-format.js";
+import { OllamaProviderTransport } from "./providers/transport/ollamacloud.js";
+import { OllamaAPIFormat } from "./adapters/ollama-api-format.js";
 import {
   resolveProvider,
   parseUrlModel,
@@ -89,8 +89,8 @@ export async function createProxyServer(
     const modelId = targetModel.includes("@") ? parsed.model : targetModel;
 
     if (!openRouterHandlers.has(modelId)) {
-      const orProvider = new OpenRouterProvider(openrouterApiKey || "", modelId);
-      const orAdapter = new OpenRouterAdapter(modelId);
+      const orProvider = new OpenRouterProviderTransport(openrouterApiKey || "", modelId);
+      const orAdapter = new OpenRouterAPIFormat(modelId);
       openRouterHandlers.set(
         modelId,
         new ComposedHandler(orProvider, modelId, modelId, port, {

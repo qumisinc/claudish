@@ -8,15 +8,15 @@
 // Import from CLI package's internal modules (same monorepo)
 import { ComposedHandler } from "../../cli/src/handlers/composed-handler.js";
 import { GeminiApiKeyProvider } from "../../cli/src/providers/transport/gemini-apikey.js";
-import { GeminiAdapter } from "../../cli/src/adapters/gemini-adapter.js";
+import { GeminiAPIFormat } from "../../cli/src/adapters/gemini-api-format.js";
 import { OpenAIProvider } from "../../cli/src/providers/transport/openai.js";
-import { OpenAIAdapter } from "../../cli/src/adapters/openai-adapter.js";
+import { OpenAIAPIFormat } from "../../cli/src/adapters/openai-api-format.js";
 import { AnthropicCompatProvider } from "../../cli/src/providers/transport/anthropic-compat.js";
-import { AnthropicPassthroughAdapter } from "../../cli/src/adapters/anthropic-passthrough-adapter.js";
+import { AnthropicAPIFormat } from "../../cli/src/adapters/anthropic-api-format.js";
 import { LocalTransport } from "../../cli/src/providers/transport/local.js";
 import { LocalModelAdapter } from "../../cli/src/adapters/local-adapter.js";
 import { OpenRouterProvider } from "../../cli/src/providers/transport/openrouter.js";
-import { OpenRouterAdapter } from "../../cli/src/adapters/openrouter-adapter.js";
+import { OpenRouterAPIFormat } from "../../cli/src/adapters/openrouter-api-format.js";
 import {
   getRegisteredRemoteProviders,
 } from "../../cli/src/providers/remote-provider-registry.js";
@@ -78,7 +78,7 @@ export class RoutingMiddleware {
       if (!geminiConfig) throw new Error("Gemini provider not found in registry");
       const modelName = model.startsWith("g/") ? model.slice(2) : model.slice(7);
       const provider = new GeminiApiKeyProvider(geminiConfig, modelName, apiKey);
-      const adapter = new GeminiAdapter(modelName);
+      const adapter = new GeminiAPIFormat(modelName);
       return new ComposedHandler(provider, model, modelName, this.bridgePort, { adapter }) as unknown as Handler;
     }
 
@@ -90,7 +90,7 @@ export class RoutingMiddleware {
       if (!openaiConfig) throw new Error("OpenAI provider not found in registry");
       const modelName = model.slice(4);
       const provider = new OpenAIProvider(openaiConfig, modelName, apiKey);
-      const adapter = new OpenAIAdapter(modelName, openaiConfig.capabilities);
+      const adapter = new OpenAIAPIFormat(modelName, openaiConfig.capabilities);
       return new ComposedHandler(provider, model, modelName, this.bridgePort, {
         adapter, tokenStrategy: "delta-aware",
       }) as unknown as Handler;
@@ -105,7 +105,7 @@ export class RoutingMiddleware {
       const prefix = model.startsWith("mm/") ? 3 : 5;
       const modelName = model.slice(prefix);
       const provider = new AnthropicCompatProvider(mmConfig, apiKey);
-      const adapter = new AnthropicPassthroughAdapter(modelName, mmConfig.name);
+      const adapter = new AnthropicAPIFormat(modelName, mmConfig.name);
       return new ComposedHandler(provider, model, modelName, this.bridgePort, { adapter }) as unknown as Handler;
     }
 
@@ -118,7 +118,7 @@ export class RoutingMiddleware {
       const prefix = model.startsWith("kimi/") ? 5 : 9;
       const modelName = model.slice(prefix);
       const provider = new AnthropicCompatProvider(kimiConfig, apiKey);
-      const adapter = new AnthropicPassthroughAdapter(modelName, kimiConfig.name);
+      const adapter = new AnthropicAPIFormat(modelName, kimiConfig.name);
       return new ComposedHandler(provider, model, modelName, this.bridgePort, { adapter }) as unknown as Handler;
     }
 
@@ -131,7 +131,7 @@ export class RoutingMiddleware {
       const prefix = model.startsWith("glm/") ? 4 : 6;
       const modelName = model.slice(prefix);
       const provider = new OpenAIProvider(glmConfig, modelName, apiKey);
-      const adapter = new OpenAIAdapter(modelName, glmConfig.capabilities);
+      const adapter = new OpenAIAPIFormat(modelName, glmConfig.capabilities);
       return new ComposedHandler(provider, model, modelName, this.bridgePort, {
         adapter, tokenStrategy: "delta-aware",
       }) as unknown as Handler;
@@ -151,7 +151,7 @@ export class RoutingMiddleware {
     const apiKey = this.apiKeys.openrouter;
     if (!apiKey) throw new Error(`OpenRouter API key required for model: ${model}`);
     const orProvider = new OpenRouterProvider(apiKey);
-    const orAdapter = new OpenRouterAdapter(model);
+    const orAdapter = new OpenRouterAPIFormat(model);
     return new ComposedHandler(orProvider, model, model, this.bridgePort, { adapter: orAdapter }) as unknown as Handler;
   }
 

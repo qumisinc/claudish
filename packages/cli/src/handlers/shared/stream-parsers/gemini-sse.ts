@@ -7,13 +7,13 @@
  */
 
 import type { Context } from "hono";
-import type { BaseModelAdapter } from "../../../adapters/base-adapter.js";
+import type { BaseAPIFormat } from "../../../adapters/base-api-format.js";
 import type { MiddlewareManager } from "../../../middleware/manager.js";
 import { log } from "../../../logger.js";
 
 export interface GeminiSseOptions {
   modelName: string;
-  adapter?: BaseModelAdapter;
+  adapter?: BaseAPIFormat;
   middlewareManager?: MiddlewareManager;
   onTokenUpdate?: (input: number, output: number) => void;
   /** Store tool call info (id, name, thoughtSignature) for future request context */

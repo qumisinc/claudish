@@ -1,5 +1,5 @@
 /**
- * CodexAdapter — handles the OpenAI Responses API wire format for Codex models.
+ * CodexAPIFormat — Layer 1 wire format for the OpenAI Responses API (Codex models).
  *
  * The Codex Responses API is a distinct wire format from Chat Completions:
  * - Uses 'input' instead of 'messages'
@@ -8,13 +8,13 @@
  * - Tools are flattened (no 'function' wrapper)
  * - SSE events use different event names (response.output_text.delta etc.)
  *
- * This adapter handles Codex models only. All other OpenAI models use OpenAIAdapter.
+ * This format handles Codex models only. All other OpenAI models use OpenAIAPIFormat.
  */
 
-import { BaseModelAdapter, type AdapterResult, matchesModelFamily } from "./base-adapter.js";
+import { BaseAPIFormat, type AdapterResult, matchesModelFamily } from "./base-api-format.js";
 import type { StreamFormat } from "../providers/transport/types.js";
 
-export class CodexAdapter extends BaseModelAdapter {
+export class CodexAPIFormat extends BaseAPIFormat {
   constructor(modelId: string) {
     super(modelId);
   }
@@ -32,7 +32,7 @@ export class CodexAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "CodexAdapter";
+    return "CodexAPIFormat";
   }
 
   override getStreamFormat(): StreamFormat {
@@ -170,3 +170,7 @@ export class CodexAdapter extends BaseModelAdapter {
     return result;
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use CodexAPIFormat */
+export { CodexAPIFormat as CodexAdapter };

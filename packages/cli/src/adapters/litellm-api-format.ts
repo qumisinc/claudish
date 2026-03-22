@@ -1,5 +1,5 @@
 /**
- * LiteLLM Model Adapter
+ * LiteLLMAPIFormat — Layer 1 wire format for LiteLLM proxy.
  *
  * Handles LiteLLM-specific model transforms:
  * - Inline image conversion for MiniMax (LiteLLM doesn't forward image_url properly)
@@ -11,14 +11,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { DefaultAdapter } from "./base-adapter.js";
-import type { AdapterResult, ToolCall } from "./base-adapter.js";
+import { DefaultAPIFormat } from "./base-api-format.js";
+import type { AdapterResult, ToolCall } from "./base-api-format.js";
 import { log } from "../logger.js";
 
 /** Models needing image_url → inline base64 conversion */
 const INLINE_IMAGE_MODEL_PATTERNS = ["minimax"];
 
-export class LiteLLMAdapter extends DefaultAdapter {
+export class LiteLLMAPIFormat extends DefaultAPIFormat {
   private baseUrl: string;
   private visionSupported: boolean;
   private needsInlineImages: boolean;
@@ -33,11 +33,11 @@ export class LiteLLMAdapter extends DefaultAdapter {
   }
 
   getName(): string {
-    return "LiteLLMAdapter";
+    return "LiteLLMAPIFormat";
   }
 
   shouldHandle(modelId: string): boolean {
-    return false; // Always used explicitly, not via AdapterManager matching
+    return false; // Always used explicitly, not via DialectManager matching
   }
 
   supportsVision(): boolean {
@@ -66,7 +66,7 @@ export class LiteLLMAdapter extends DefaultAdapter {
             const base64Match = url.match(/^data:[^;]+;base64,(.+)$/);
             if (base64Match) {
               inlineImages += `\n[Image base64:${base64Match[1]}]`;
-              log(`[LiteLLMAdapter] Converted image_url to inline base64 for ${this.modelId}`);
+              log(`[LiteLLMAPIFormat] Converted image_url to inline base64 for ${this.modelId}`);
             }
           } else if (url) {
             inlineImages += `\n[Image URL: ${url}]`;
@@ -142,7 +142,7 @@ export class LiteLLMAdapter extends DefaultAdapter {
       const cacheData = JSON.parse(readFileSync(cachePath, "utf-8"));
       const model = cacheData.models?.find((m: any) => m.name === this.modelId);
       if (model && model.supportsVision === false) {
-        log(`[LiteLLMAdapter] Model ${this.modelId} does not support vision`);
+        log(`[LiteLLMAPIFormat] Model ${this.modelId} does not support vision`);
         return false;
       }
       return true;
@@ -151,3 +151,7 @@ export class LiteLLMAdapter extends DefaultAdapter {
     }
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use LiteLLMAPIFormat */
+export { LiteLLMAPIFormat as LiteLLMAdapter };

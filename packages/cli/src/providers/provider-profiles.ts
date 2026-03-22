@@ -16,21 +16,24 @@
 import type { ComposedHandlerOptions } from "../handlers/composed-handler.js";
 import type { RemoteProvider } from "../handlers/shared/remote-provider-types.js";
 import type { ProviderTransport } from "./transport/types.js";
-import type { BaseModelAdapter } from "../adapters/base-adapter.js";
+import type { BaseAPIFormat } from "../adapters/base-api-format.js";
+// Alias for readability within this file
+type BaseModelAdapter = BaseAPIFormat;
 import { ComposedHandler } from "../handlers/composed-handler.js";
-import { GeminiApiKeyProvider } from "./transport/gemini-apikey.js";
-import { GeminiCodeAssistProvider } from "./transport/gemini-codeassist.js";
-import { GeminiAdapter } from "../adapters/gemini-adapter.js";
-import { OpenAIProvider } from "./transport/openai.js";
-import { OpenAIAdapter } from "../adapters/openai-adapter.js";
-import { AnthropicCompatProvider } from "./transport/anthropic-compat.js";
-import { AnthropicPassthroughAdapter } from "../adapters/anthropic-passthrough-adapter.js";
-import { OllamaCloudProvider } from "./transport/ollamacloud.js";
-import { OllamaCloudAdapter } from "../adapters/ollamacloud-adapter.js";
-import { LiteLLMProvider } from "./transport/litellm.js";
-import { LiteLLMAdapter } from "../adapters/litellm-adapter.js";
-import { VertexOAuthProvider, parseVertexModel } from "./transport/vertex-oauth.js";
-import { DefaultAdapter } from "../adapters/base-adapter.js";
+import { GeminiProviderTransport } from "./transport/gemini-apikey.js";
+import { GeminiCodeAssistProviderTransport } from "./transport/gemini-codeassist.js";
+import { GeminiAPIFormat } from "../adapters/gemini-api-format.js";
+import { OpenAIProviderTransport } from "./transport/openai.js";
+import { OpenAIAPIFormat } from "../adapters/openai-api-format.js";
+import { AnthropicProviderTransport } from "./transport/anthropic-compat.js";
+import { AnthropicAPIFormat } from "../adapters/anthropic-api-format.js";
+import { OllamaProviderTransport } from "./transport/ollamacloud.js";
+import { OllamaAPIFormat } from "../adapters/ollama-api-format.js";
+import { LiteLLMProviderTransport } from "./transport/litellm.js";
+import { LiteLLMAPIFormat } from "../adapters/litellm-api-format.js";
+import { VertexProviderTransport, parseVertexModel } from "./transport/vertex-oauth.js";
+import { DefaultAPIFormat } from "../adapters/base-api-format.js";
+import { OpenRouterProvider } from "./transport/openrouter.js";
 import { getRegisteredRemoteProviders } from "./remote-provider-registry.js";
 import { getVertexConfig, validateVertexOAuthConfig } from "../auth/vertex-auth.js";
 import { log, logStderr } from "../logger.js";
@@ -82,8 +85,8 @@ export interface ProviderProfile {
 
 const geminiProfile: ProviderProfile = {
   createHandler(ctx) {
-    const transport = new GeminiApiKeyProvider(ctx.provider, ctx.modelName, ctx.apiKey);
-    const adapter = new GeminiAdapter(ctx.modelName);
+    const transport = new GeminiProviderTransport(ctx.provider, ctx.modelName, ctx.apiKey);
+    const adapter = new GeminiAPIFormat(ctx.modelName);
     const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
       adapter,
       ...ctx.sharedOpts,
@@ -95,8 +98,8 @@ const geminiProfile: ProviderProfile = {
 
 const geminiCodeAssistProfile: ProviderProfile = {
   createHandler(ctx) {
-    const transport = new GeminiCodeAssistProvider(ctx.modelName);
-    const adapter = new GeminiAdapter(ctx.modelName);
+    const transport = new GeminiCodeAssistProviderTransport(ctx.modelName);
+    const adapter = new GeminiAPIFormat(ctx.modelName);
     const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
       adapter,
       unwrapGeminiResponse: true,
@@ -109,8 +112,8 @@ const geminiCodeAssistProfile: ProviderProfile = {
 
 const openaiProfile: ProviderProfile = {
   createHandler(ctx) {
-    const transport = new OpenAIProvider(ctx.provider, ctx.modelName, ctx.apiKey);
-    const adapter = new OpenAIAdapter(ctx.modelName);
+    const transport = new OpenAIProviderTransport(ctx.provider, ctx.modelName, ctx.apiKey);
+    const adapter = new OpenAIAPIFormat(ctx.modelName);
     const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
       adapter,
       tokenStrategy: "delta-aware",
@@ -124,8 +127,8 @@ const openaiProfile: ProviderProfile = {
 /** Shared profile for MiniMax, Kimi, Kimi Coding, and Z.AI (all Anthropic-compatible APIs) */
 const anthropicCompatProfile: ProviderProfile = {
   createHandler(ctx) {
-    const transport = new AnthropicCompatProvider(ctx.provider, ctx.apiKey);
-    const adapter = new AnthropicPassthroughAdapter(ctx.modelName, ctx.provider.name);
+    const transport = new AnthropicProviderTransport(ctx.provider, ctx.apiKey);
+    const adapter = new AnthropicAPIFormat(ctx.modelName, ctx.provider.name);
     const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
       adapter,
       ...ctx.sharedOpts,
@@ -138,8 +141,8 @@ const anthropicCompatProfile: ProviderProfile = {
 /** GLM and GLM Coding Plan use the OpenAI-compatible API */
 const glmProfile: ProviderProfile = {
   createHandler(ctx) {
-    const transport = new OpenAIProvider(ctx.provider, ctx.modelName, ctx.apiKey);
-    const adapter = new OpenAIAdapter(ctx.modelName);
+    const transport = new OpenAIProviderTransport(ctx.provider, ctx.modelName, ctx.apiKey);
+    const adapter = new OpenAIAPIFormat(ctx.modelName);
     const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
       adapter,
       tokenStrategy: "delta-aware",
@@ -159,8 +162,8 @@ const glmProfile: ProviderProfile = {
  * rate-limit bucketing.
  *
  * Model routing inside the profile:
- *   - MiniMax models → AnthropicCompatProvider + AnthropicPassthroughAdapter
- *   - All other models → OpenAIProvider + OpenAIAdapter (delta-aware)
+ *   - MiniMax models → AnthropicProviderTransport + AnthropicAPIFormat
+ *   - All other models → OpenAIProviderTransport + OpenAIAPIFormat (delta-aware)
  */
 const openCodeZenProfile: ProviderProfile = {
   createHandler(ctx) {
@@ -168,8 +171,8 @@ const openCodeZenProfile: ProviderProfile = {
     const isGoProvider = ctx.provider.name === "opencode-zen-go";
 
     if (ctx.modelName.toLowerCase().includes("minimax")) {
-      const transport = new AnthropicCompatProvider(ctx.provider, zenApiKey);
-      const adapter = new AnthropicPassthroughAdapter(ctx.modelName, ctx.provider.name);
+      const transport = new AnthropicProviderTransport(ctx.provider, zenApiKey);
+      const adapter = new AnthropicAPIFormat(ctx.modelName, ctx.provider.name);
       const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
         adapter,
         ...ctx.sharedOpts,
@@ -180,8 +183,8 @@ const openCodeZenProfile: ProviderProfile = {
       return handler;
     }
 
-    const transport = new OpenAIProvider(ctx.provider, ctx.modelName, zenApiKey);
-    const adapter = new OpenAIAdapter(ctx.modelName);
+    const transport = new OpenAIProviderTransport(ctx.provider, ctx.modelName, zenApiKey);
+    const adapter = new OpenAIAPIFormat(ctx.modelName);
     const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
       adapter,
       tokenStrategy: "delta-aware",
@@ -196,8 +199,8 @@ const openCodeZenProfile: ProviderProfile = {
 
 const ollamaCloudProfile: ProviderProfile = {
   createHandler(ctx) {
-    const transport = new OllamaCloudProvider(ctx.provider, ctx.apiKey);
-    const adapter = new OllamaCloudAdapter(ctx.modelName);
+    const transport = new OllamaProviderTransport(ctx.provider, ctx.apiKey);
+    const adapter = new OllamaAPIFormat(ctx.modelName);
     const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
       adapter,
       tokenStrategy: "accumulate-both",
@@ -218,8 +221,8 @@ const litellmProfile: ProviderProfile = {
       );
       return null;
     }
-    const transport = new LiteLLMProvider(ctx.provider.baseUrl, ctx.apiKey, ctx.modelName);
-    const adapter = new LiteLLMAdapter(ctx.modelName, ctx.provider.baseUrl);
+    const transport = new LiteLLMProviderTransport(ctx.provider.baseUrl, ctx.apiKey, ctx.modelName);
+    const adapter = new LiteLLMAPIFormat(ctx.modelName, ctx.provider.baseUrl);
     const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
       adapter,
       ...ctx.sharedOpts,
@@ -234,9 +237,9 @@ const litellmProfile: ProviderProfile = {
 /**
  * Vertex AI — supports two modes:
  *   1. Express Mode (VERTEX_API_KEY) — uses the Gemini API endpoint with a Vertex key.
- *      Uses GeminiApiKeyProvider (with the gemini provider config) + GeminiAdapter.
+ *      Uses GeminiProviderTransport (with the gemini provider config) + GeminiAPIFormat.
  *   2. OAuth Mode (VERTEX_PROJECT) — full project-based access with OAuth tokens.
- *      Uses VertexOAuthProvider + publisher-specific adapter (Gemini/Anthropic/Default).
+ *      Uses VertexProviderTransport + publisher-specific format (Gemini/Anthropic/Default).
  *
  * Returns null if neither key nor project config is available.
  */
@@ -252,12 +255,12 @@ const vertexProfile: ProviderProfile = {
       // because the vertex provider config has empty baseUrl/apiPath (designed for OAuth mode).
       const geminiConfig = getRegisteredRemoteProviders().find((p) => p.name === "gemini");
       const expressProvider = geminiConfig || ctx.provider;
-      const transport = new GeminiApiKeyProvider(
+      const transport = new GeminiProviderTransport(
         expressProvider,
         ctx.modelName,
         process.env.VERTEX_API_KEY!
       );
-      const adapter = new GeminiAdapter(ctx.modelName);
+      const adapter = new GeminiAPIFormat(ctx.modelName);
       const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
         adapter,
         ...ctx.sharedOpts,
@@ -274,20 +277,20 @@ const vertexProfile: ProviderProfile = {
         return null;
       }
       const parsed = parseVertexModel(ctx.modelName);
-      const transport = new VertexOAuthProvider(vertexConfig, parsed);
+      const transport = new VertexProviderTransport(vertexConfig, parsed);
 
       let adapter: BaseModelAdapter;
       if (parsed.publisher === "google") {
-        adapter = new GeminiAdapter(ctx.modelName);
+        adapter = new GeminiAPIFormat(ctx.modelName);
       } else if (parsed.publisher === "anthropic") {
-        adapter = new AnthropicPassthroughAdapter(parsed.model, "vertex");
+        adapter = new AnthropicAPIFormat(parsed.model, "vertex");
       } else {
         // Mistral/Meta use OpenAI format; Mistral rawPredict uses bare model name
         const modelId =
           parsed.publisher === "mistralai"
             ? parsed.model
             : `${parsed.publisher}/${parsed.model}`;
-        adapter = new DefaultAdapter(modelId);
+        adapter = new DefaultAPIFormat(modelId);
       }
 
       const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {

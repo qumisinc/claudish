@@ -157,7 +157,7 @@ export function recordStats(partial: Partial<StatsEvent>): void {
       estimated_cost: partial.estimated_cost ?? 0,
       is_free_model: partial.is_free_model ?? false,
       token_strategy: partial.token_strategy ?? "standard",
-      adapter_name: partial.adapter_name ?? "DefaultAdapter",
+      adapter_name: partial.adapter_name ?? "DefaultAPIFormat",
       middleware_names: partial.middleware_names ?? [],
       fallback_used: partial.fallback_used ?? false,
       invocation_mode: partial.invocation_mode ?? "auto-route",

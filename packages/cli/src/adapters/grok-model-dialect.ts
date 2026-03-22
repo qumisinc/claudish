@@ -1,19 +1,19 @@
 /**
- * Grok adapter for translating xAI XML function calls to Claude Code tool_calls
+ * GrokModelDialect — Layer 2 dialect for xAI Grok models.
  *
- * Grok models output function calls in xAI's XML format:
+ * Translates xAI XML function calls to Claude Code tool_calls:
  * <xai:function_call name="ToolName">
  *   <xai:parameter name="param1">value1</xai:parameter>
  *   <xai:parameter name="param2">value2</xai:parameter>
  * </xai:function_call>
  *
- * This adapter translates that to Claude Code's expected tool_calls format.
+ * This dialect translates that to Claude Code's expected tool_calls format.
  */
 
-import { BaseModelAdapter, AdapterResult, ToolCall, matchesModelFamily } from "./base-adapter";
-import { log } from "../logger";
+import { BaseAPIFormat, AdapterResult, ToolCall, matchesModelFamily } from "./base-api-format.js";
+import { log } from "../logger.js";
 
-export class GrokAdapter extends BaseModelAdapter {
+export class GrokModelDialect extends BaseAPIFormat {
   private xmlBuffer: string = "";
 
   processTextContent(textContent: string, accumulatedText: string): AdapterResult {
@@ -93,9 +93,9 @@ export class GrokAdapter extends BaseModelAdapter {
         const effort = budget_tokens >= 20000 ? "high" : "low";
 
         request.reasoning_effort = effort;
-        log(`[GrokAdapter] Mapped budget ${budget_tokens} -> reasoning_effort: ${effort}`);
+        log(`[GrokModelDialect] Mapped budget ${budget_tokens} -> reasoning_effort: ${effort}`);
       } else {
-        log(`[GrokAdapter] Model ${modelId} does not support reasoning params. Stripping.`);
+        log(`[GrokModelDialect] Model ${modelId} does not support reasoning params. Stripping.`);
       }
 
       // Always remove raw thinking object for Grok to avoid API errors
@@ -135,7 +135,7 @@ export class GrokAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "GrokAdapter";
+    return "GrokModelDialect";
   }
 
   override getContextWindow(): number {
@@ -157,3 +157,7 @@ export class GrokAdapter extends BaseModelAdapter {
     this.xmlBuffer = "";
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use GrokModelDialect */
+export { GrokModelDialect as GrokAdapter };

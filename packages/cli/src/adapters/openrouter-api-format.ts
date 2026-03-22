@@ -1,7 +1,7 @@
 /**
- * OpenRouter Adapter
+ * OpenRouterAPIFormat — Layer 1 wire format for OpenRouter API.
  *
- * Wraps a model-specific adapter (Grok, Gemini, Deepseek, etc.) and adds
+ * Wraps a model-specific dialect (Grok, Gemini, Deepseek, etc.) and adds
  * OpenRouter-specific behaviors:
  * - Model-specific system prompts (Grok XML fix, Gemini reasoning suppression)
  * - stream_options: { include_usage: true }
@@ -10,19 +10,19 @@
  * - Tool choice mapping from Claude format
  */
 
-import { BaseModelAdapter, type AdapterResult } from "./base-adapter.js";
-import { AdapterManager } from "./adapter-manager.js";
+import { BaseAPIFormat, type AdapterResult } from "./base-api-format.js";
+import { DialectManager } from "./dialect-manager.js";
 import { removeUriFormat } from "../transform.js";
 import { log } from "../logger.js";
 
-export class OpenRouterAdapter extends BaseModelAdapter {
-  private innerAdapter: BaseModelAdapter;
+export class OpenRouterAPIFormat extends BaseAPIFormat {
+  private innerAdapter: BaseAPIFormat;
 
   constructor(modelId: string) {
     super(modelId);
 
-    // Get model-specific adapter (GrokAdapter, GeminiAdapter, etc.)
-    const manager = new AdapterManager(modelId);
+    // Get model-specific dialect (GrokModelDialect, GeminiAPIFormat, etc.)
+    const manager = new DialectManager(modelId);
     this.innerAdapter = manager.getAdapter();
   }
 
@@ -49,7 +49,7 @@ export class OpenRouterAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return `OpenRouterAdapter(${this.innerAdapter.getName()})`;
+    return `OpenRouterAPIFormat(${this.innerAdapter.getName()})`;
   }
 
   override reset(): void {
@@ -174,3 +174,7 @@ export class OpenRouterAdapter extends BaseModelAdapter {
     return new Map();
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use OpenRouterAPIFormat */
+export { OpenRouterAPIFormat as OpenRouterAdapter };

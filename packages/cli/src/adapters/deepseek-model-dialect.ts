@@ -1,7 +1,14 @@
-import { BaseModelAdapter, AdapterResult, matchesModelFamily } from "./base-adapter";
-import { log } from "../logger";
+/**
+ * DeepSeekModelDialect — Layer 2 dialect for DeepSeek models.
+ *
+ * Handles DeepSeek-specific quirks:
+ * - Strips unsupported thinking params (DeepSeek thinks automatically)
+ */
 
-export class DeepSeekAdapter extends BaseModelAdapter {
+import { BaseAPIFormat, AdapterResult, matchesModelFamily } from "./base-api-format.js";
+import { log } from "../logger.js";
+
+export class DeepSeekModelDialect extends BaseAPIFormat {
   processTextContent(textContent: string, accumulatedText: string): AdapterResult {
     return {
       cleanedText: textContent,
@@ -19,7 +26,7 @@ export class DeepSeekAdapter extends BaseModelAdapter {
       // It thinks automatically or via other means (R1)
       // Stripping thinking object to prevent API errors
 
-      log(`[DeepSeekAdapter] Stripping thinking object (not supported by API)`);
+      log(`[DeepSeekModelDialect] Stripping thinking object (not supported by API)`);
 
       // Cleanup: Remove raw thinking object
       delete request.thinking;
@@ -33,6 +40,10 @@ export class DeepSeekAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "DeepSeekAdapter";
+    return "DeepSeekModelDialect";
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use DeepSeekModelDialect */
+export { DeepSeekModelDialect as DeepSeekAdapter };

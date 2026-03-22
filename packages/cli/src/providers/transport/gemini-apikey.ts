@@ -13,7 +13,7 @@ import type { RemoteProvider } from "../../handlers/shared/remote-provider-types
 import { GeminiRequestQueue } from "../../handlers/shared/gemini-queue.js";
 import { log } from "../../logger.js";
 
-export class GeminiApiKeyProvider implements ProviderTransport {
+export class GeminiProviderTransport implements ProviderTransport {
   readonly name = "gemini";
   readonly displayName = "Gemini API";
   readonly streamFormat: StreamFormat = "gemini-sse";
@@ -48,3 +48,7 @@ export class GeminiApiKeyProvider implements ProviderTransport {
     return queue.enqueue(fetchFn);
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use GeminiProviderTransport */
+export { GeminiProviderTransport as GeminiApiKeyProvider };

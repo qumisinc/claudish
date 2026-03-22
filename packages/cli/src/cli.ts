@@ -44,7 +44,7 @@ export {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "5.19.0"; // Fallback version for compiled binaries
+let VERSION = "6.0.0"; // Fallback version for compiled binaries
 try {
   const packageJson = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   VERSION = packageJson.version;
@@ -1391,39 +1391,39 @@ async function probeModelRouting(models: string[], jsonOutput: boolean): Promise
       const modelName = resolvedSpec?.modelName || parsed.model;
 
       // Determine format adapter from provider name (mirrors provider-profiles.ts)
-      let formatAdapterName = "OpenAIAdapter";
+      let formatAdapterName = "OpenAIAPIFormat";
       let declaredStreamFormat = "openai-sse";
 
       const anthropicCompatProviders = ["minimax", "minimax-coding", "kimi", "kimi-coding", "zai"];
       const isMinimaxModel = modelName.toLowerCase().includes("minimax");
 
       if (anthropicCompatProviders.includes(providerName)) {
-        formatAdapterName = "AnthropicPassthroughAdapter";
+        formatAdapterName = "AnthropicAPIFormat";
         declaredStreamFormat = "anthropic-sse";
       } else if (
         (providerName === "opencode-zen" || providerName === "opencode-zen-go") &&
         isMinimaxModel
       ) {
-        formatAdapterName = "AnthropicPassthroughAdapter";
+        formatAdapterName = "AnthropicAPIFormat";
         declaredStreamFormat = "anthropic-sse";
       } else if (providerName === "gemini" || providerName === "gemini-codeassist") {
-        formatAdapterName = "GeminiAdapter";
+        formatAdapterName = "GeminiAPIFormat";
         declaredStreamFormat = "gemini-sse";
       } else if (providerName === "ollamacloud") {
-        formatAdapterName = "OllamaCloudAdapter";
+        formatAdapterName = "OllamaAPIFormat";
         declaredStreamFormat = "openai-sse";
       } else if (providerName === "litellm") {
-        formatAdapterName = "LiteLLMAdapter";
+        formatAdapterName = "LiteLLMAPIFormat";
         declaredStreamFormat = "openai-sse";
       } else {
         // openai, glm, glm-coding, opencode-zen (non-minimax), opencode-zen-go (non-minimax)
-        formatAdapterName = "OpenAIAdapter";
+        formatAdapterName = "OpenAIAPIFormat";
         declaredStreamFormat = "openai-sse";
       }
 
-      // Get model translator via AdapterManager
-      const { AdapterManager } = await import("./adapters/adapter-manager.js");
-      const adapterManager = new AdapterManager(modelName);
+      // Get model dialect via DialectManager
+      const { DialectManager } = await import("./adapters/dialect-manager.js");
+      const adapterManager = new DialectManager(modelName);
       const modelTranslator = adapterManager.getAdapter();
       const modelTranslatorName = modelTranslator.getName();
 
@@ -1437,7 +1437,7 @@ async function probeModelRouting(models: string[], jsonOutput: boolean): Promise
       // Effective stream format: transport override wins, then model translator format (if not default),
       // then the format adapter's declared format
       const modelTranslatorFormat =
-        modelTranslatorName !== "DefaultAdapter" ? modelTranslator.getStreamFormat() : null;
+        modelTranslatorName !== "DefaultAPIFormat" ? modelTranslator.getStreamFormat() : null;
       const effectiveStreamFormat =
         transportOverride || modelTranslatorFormat || declaredStreamFormat;
 

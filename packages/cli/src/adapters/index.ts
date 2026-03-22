@@ -1,8 +1,16 @@
 /**
- * Model adapters for handling model-specific quirks
+ * Model format and dialect implementations
  */
 
-export { BaseModelAdapter, DefaultAdapter } from "./base-adapter.js";
-export type { ToolCall, AdapterResult } from "./base-adapter.js";
-export { GrokAdapter } from "./grok-adapter.js";
-export { AdapterManager } from "./adapter-manager.js";
+export { BaseAPIFormat, DefaultAPIFormat } from "./base-api-format.js";
+export type { ToolCall, AdapterResult } from "./base-api-format.js";
+export { GrokModelDialect } from "./grok-model-dialect.js";
+export { DialectManager } from "./dialect-manager.js";
+
+// Backward-compatible aliases
+export {
+  BaseAPIFormat as BaseModelAdapter,
+  DefaultAPIFormat as DefaultAdapter,
+} from "./base-api-format.js";
+export { GrokModelDialect as GrokAdapter } from "./grok-model-dialect.js";
+export { DialectManager as AdapterManager } from "./dialect-manager.js";

@@ -230,7 +230,7 @@ describe("OTLP timeUnixNano format", () => {
       estimated_cost: 0,
       is_free_model: false,
       token_strategy: "standard",
-      adapter_name: "DefaultAdapter",
+      adapter_name: "DefaultAPIFormat",
       middleware_names: [] as string[],
       fallback_used: false,
       invocation_mode: "auto-route",

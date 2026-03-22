@@ -26,7 +26,7 @@ function makeEvent(overrides: Partial<StatsEvent> = {}): StatsEvent {
     estimated_cost: 0.001,
     is_free_model: false,
     token_strategy: "standard",
-    adapter_name: "DefaultAdapter",
+    adapter_name: "DefaultAPIFormat",
     middleware_names: [],
     fallback_used: false,
     invocation_mode: "auto-route",

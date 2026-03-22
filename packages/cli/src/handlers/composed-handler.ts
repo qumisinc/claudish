@@ -19,8 +19,10 @@
 import type { Context } from "hono";
 import type { ModelHandler } from "./types.js";
 import type { ProviderTransport } from "../providers/transport/types.js";
-import type { BaseModelAdapter } from "../adapters/base-adapter.js";
-import { AdapterManager } from "../adapters/adapter-manager.js";
+import type { BaseAPIFormat } from "../adapters/base-api-format.js";
+// Alias for readability within this file
+type BaseModelAdapter = BaseAPIFormat;
+import { DialectManager } from "../adapters/dialect-manager.js";
 import { MiddlewareManager, GeminiThoughtSignatureMiddleware } from "../middleware/index.js";
 import { TokenTracker } from "./shared/token-tracker.js";
 import { transformOpenAIToClaude } from "../transform.js";
@@ -47,8 +49,8 @@ function extractAuthHeaders(c: Context): VisionProxyAuthHeaders {
 }
 
 export interface ComposedHandlerOptions {
-  /** Override adapter selection — use this specific adapter instance */
-  adapter?: BaseModelAdapter;
+  /** Override format selection — use this specific APIFormat instance */
+  adapter?: BaseAPIFormat;
   /** Tool schemas for validation (enables buffered tool call validation) */
   toolSchemas?: any[];
   /** Token tracking strategy */
@@ -65,7 +67,7 @@ export interface ComposedHandlerOptions {
 
 export class ComposedHandler implements ModelHandler {
   private provider: ProviderTransport;
-  private adapterManager: AdapterManager;
+  private adapterManager: DialectManager;
   private explicitAdapter?: BaseModelAdapter;
   /** Model-specific adapter (GLM, Grok, etc.) — handles model quirks independent of provider */
   private modelAdapter?: BaseModelAdapter;
@@ -90,13 +92,13 @@ export class ComposedHandler implements ModelHandler {
     this.explicitAdapter = options.adapter;
     this.isInteractive = options.isInteractive ?? false;
 
-    // Initialize adapter manager for automatic adapter selection
-    this.adapterManager = new AdapterManager(targetModel);
+    // Initialize dialect manager for automatic dialect/format selection
+    this.adapterManager = new DialectManager(targetModel);
 
     // Always resolve model-specific adapter (GLM, Grok, DeepSeek, etc.)
     // This handles model quirks independent of provider transport (LiteLLM, OpenRouter, etc.)
     const resolvedModelAdapter = this.adapterManager.getAdapter();
-    if (resolvedModelAdapter.getName() !== "DefaultAdapter") {
+    if (resolvedModelAdapter.getName() !== "DefaultAPIFormat") {
       this.modelAdapter = resolvedModelAdapter;
     }
 
@@ -135,7 +137,7 @@ export class ComposedHandler implements ModelHandler {
 
   /** Get the active adapter name for stats reporting. */
   private getActiveAdapterName(): string {
-    // Model-specific adapter takes precedence (GLMAdapter, GrokAdapter, etc.)
+    // Model-specific dialect takes precedence (GLMModelDialect, GrokModelDialect, etc.)
     if (this.modelAdapter) return this.modelAdapter.getName();
     return this.getAdapter().getName();
   }
@@ -626,7 +628,7 @@ export class ComposedHandler implements ModelHandler {
 
     // Stream format priority:
     //   1. Transport override (aggregators like LiteLLM/OpenRouter normalize server-side)
-    //   2. Model adapter (CodexAdapter → openai-responses-sse; overrides provider adapter)
+    //   2. Model dialect (CodexAPIFormat → openai-responses-sse; overrides format adapter)
     //   3. Provider adapter (explicit adapter passed to ComposedHandler)
     const streamFormat =
       this.provider.overrideStreamFormat?.() ??

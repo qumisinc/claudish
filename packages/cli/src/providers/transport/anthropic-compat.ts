@@ -10,7 +10,7 @@ import type { ProviderTransport, StreamFormat } from "./types.js";
 import type { RemoteProvider } from "../../handlers/shared/remote-provider-types.js";
 import { log } from "../../logger.js";
 
-export class AnthropicCompatProvider implements ProviderTransport {
+export class AnthropicProviderTransport implements ProviderTransport {
   readonly name: string;
   readonly displayName: string;
   readonly streamFormat: StreamFormat = "anthropic-sse";
@@ -22,7 +22,7 @@ export class AnthropicCompatProvider implements ProviderTransport {
     this.provider = provider;
     this.apiKey = apiKey;
     this.name = provider.name;
-    this.displayName = AnthropicCompatProvider.formatDisplayName(provider.name);
+    this.displayName = AnthropicProviderTransport.formatDisplayName(provider.name);
   }
 
   getEndpoint(): string {
@@ -89,3 +89,7 @@ export class AnthropicCompatProvider implements ProviderTransport {
     return map[name.toLowerCase()] || name.charAt(0).toUpperCase() + name.slice(1);
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use AnthropicProviderTransport */
+export { AnthropicProviderTransport as AnthropicCompatProvider };

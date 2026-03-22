@@ -283,12 +283,12 @@ export function App() {
   const isRoutingInput = mode === "add_routing_pattern" || mode === "add_routing_chain";
 
   // ── Layout math ───────────────────────────────────────────────────────────
-  // header(1) + tab-bar(2) + content(flex) + detail(fixed) + footer(1)
+  // header(1) + tab-bar(3) + content(flex) + detail(fixed) + footer(1)
   const HEADER_H = 1;
-  const TABS_H = 2;
+  const TABS_H = 3;
   const FOOTER_H = 1;
   const DETAIL_H = 5;
-  const contentH = Math.max(4, height - HEADER_H - TABS_H - DETAIL_H - FOOTER_H);
+  const contentH = Math.max(4, height - HEADER_H - TABS_H - DETAIL_H - FOOTER_H - 1);
 
   // ── Render helpers ────────────────────────────────────────────────────────
   function TabBar() {
@@ -300,44 +300,49 @@ export function App() {
 
     return (
       <box height={TABS_H} flexDirection="column" backgroundColor={C.bg}>
-        {/* Tab buttons row — all use the same unified blue color scheme */}
-        <box height={1} flexDirection="row" paddingX={1}>
+        {/* Tab buttons row — use box-level backgroundColor for unmistakable tab highlighting */}
+        <box height={1} flexDirection="row">
+          <box width={1} height={1} backgroundColor={C.bg} />
           {tabs.map((t, i) => {
             const active = activeTab === t.value;
             return (
-              <text key={t.value}>
-                {i > 0 && <span fg={C.bg}>{"    "}</span>}
-                {active ? (
-                  <span fg={C.tabActiveFg} backgroundColor={C.tabActiveBg} bold>
-                    {`  ${t.num}. ${t.label}  `}
-                  </span>
-                ) : (
-                  <span fg={C.tabInactiveFg} backgroundColor={C.tabInactiveBg} bold>
-                    {`  ${t.num}. ${t.label}  `}
-                  </span>
-                )}
-              </text>
+              <box key={t.value} flexDirection="row" height={1}>
+                {i > 0 && <box width={2} height={1} backgroundColor={C.bg} />}
+                <box
+                  height={1}
+                  backgroundColor={active ? C.tabActiveBg : C.tabInactiveBg}
+                  paddingX={1}
+                >
+                  <text>
+                    <span fg={active ? C.tabActiveFg : C.tabInactiveFg} bold>
+                      {`${t.num}. ${t.label}`}
+                    </span>
+                  </text>
+                </box>
+              </box>
             );
           })}
           {statusMsg && (
-            <text>
-              <span fg={C.dim}>{"  ─  "}</span>
-              <span
-                fg={
-                  statusMsg.startsWith("Key saved") ||
-                  statusMsg.startsWith("Rule added") ||
-                  statusMsg.startsWith("Endpoint") ||
-                  statusMsg.startsWith("Telemetry") ||
-                  statusMsg.startsWith("Usage") ||
-                  statusMsg.startsWith("Stats buffer")
-                    ? C.green
-                    : C.yellow
-                }
-                bold
-              >
-                {statusMsg}
-              </span>
-            </text>
+            <box height={1} backgroundColor={C.bg} paddingX={1}>
+              <text>
+                <span fg={C.dim}>{"─  "}</span>
+                <span
+                  fg={
+                    statusMsg.startsWith("Key saved") ||
+                    statusMsg.startsWith("Rule added") ||
+                    statusMsg.startsWith("Endpoint") ||
+                    statusMsg.startsWith("Telemetry") ||
+                    statusMsg.startsWith("Usage") ||
+                    statusMsg.startsWith("Stats buffer")
+                      ? C.green
+                      : C.yellow
+                  }
+                  bold
+                >
+                  {statusMsg}
+                </span>
+              </text>
+            </box>
           )}
         </box>
         {/* Separator line */}
@@ -360,9 +365,12 @@ export function App() {
     const getRow = (p: ProviderDef, idx: number) => {
       const isReady = !!(config.apiKeys?.[p.apiKeyEnvVar] || process.env[p.apiKeyEnvVar]);
       const selected = idx === providerIndex;
-      const keyDisplay = isReady
-        ? maskKey(config.apiKeys?.[p.apiKeyEnvVar]) || maskKey(process.env[p.apiKeyEnvVar])
-        : "────────";
+      const cfgMask = maskKey(config.apiKeys?.[p.apiKeyEnvVar]);
+      const envMask = maskKey(process.env[p.apiKeyEnvVar]);
+      const hasCfg = cfgMask !== "────────";
+      const hasEnv = envMask !== "────────";
+      const keyDisplay = isReady ? (hasCfg ? cfgMask : envMask) : "────────";
+      const src = hasEnv && hasCfg ? "e+c" : hasEnv ? "env" : hasCfg ? "cfg" : "";
       const namePad = p.displayName.padEnd(14).substring(0, 14);
       const isFirstUnready = !isReady && !separatorRendered;
       if (isFirstUnready) separatorRendered = true;
@@ -385,14 +393,13 @@ export function App() {
               </span>
               <span fg={C.dim}>{"  "}</span>
               {isReady ? (
-                <span fg={C.black} backgroundColor={C.brightGreen} bold>
-                  {" ready "}
-                </span>
+                <span fg={C.green} bold>{"ready  "}</span>
               ) : (
-                <span fg={C.dim}>{" not set "}</span>
+                <span fg={C.dim}>{"not set"}</span>
               )}
               <span fg={C.dim}>{"  "}</span>
-              <span fg={isReady ? C.green : C.dim}>{keyDisplay}</span>
+              <span fg={isReady ? C.cyan : C.dim}>{keyDisplay}</span>
+              {src ? <span fg={C.dim}>{` (${src})`}</span> : null}
               <span fg={C.dim}>{"  "}</span>
               <span fg={selected ? C.white : C.dim}>{p.description}</span>
             </text>
@@ -495,6 +502,10 @@ export function App() {
             </span>
           </text>
         )}
+        <text>
+          <span fg={C.blue} bold>Desc:    </span>
+          <span fg={C.white}>{selectedProvider.description}</span>
+        </text>
         {selectedProvider.keyUrl && (
           <text>
             <span fg={C.blue} bold>Get Key: </span>
@@ -507,21 +518,9 @@ export function App() {
 
   // ── Routing tab ───────────────────────────────────────────────────────────
 
-  // Visual chain component: [provider1] → [provider2] → ...
-  function RoutingChain({ chain, description }: { chain: string[]; description: string }) {
-    return (
-      <text>
-        <span fg={C.dim}>{"    "}</span>
-        {chain.map((p, i) => (
-          <span key={p}>
-            <span fg={C.black} backgroundColor={C.cyan} bold>{` ${p} `}</span>
-            {i < chain.length - 1 && <span fg={C.dim}>{" → "}</span>}
-          </span>
-        ))}
-        <span fg={C.dim}>{"  — "}</span>
-        <span fg={C.fgMuted}>{description}</span>
-      </text>
-    );
+  // Format a chain as inline text: "kimi → openrouter"
+  function chainStr(chain: string[]): string {
+    return chain.join(" → ");
   }
 
   function RoutingContent() {
@@ -537,47 +536,24 @@ export function App() {
         flexDirection="column"
         paddingX={1}
       >
-        {/* Rules list — show examples when empty */}
+        {/* Default chain — dimmed, not editable */}
+        <text>
+          <span fg={C.dim}>{"  *  "}</span>
+          <span fg={C.fgMuted}>{"LiteLLM → Zen Go → Subscription → Provider Direct → OpenRouter"}</span>
+          <span fg={C.dim}>{" (built-in)"}</span>
+        </text>
+        <text> </text>
+        {/* Custom rules header */}
+        <text>
+          <span fg={C.blue} bold>{"  PATTERN         CHAIN"}</span>
+        </text>
+        {/* Custom rules or empty state */}
         {ruleEntries.length === 0 && !isRoutingInput && (
-          <>
-            <text>
-              <span fg={C.fgMuted}>{"No custom rules. Press "}</span>
-              <span fg={C.black} backgroundColor={C.green} bold>{" a "}</span>
-              <span fg={C.fgMuted}>{" to add one. Default: LiteLLM → Zen → Native → OpenRouter"}</span>
-            </text>
-            <text> </text>
-            <text>
-              <span fg={C.blue} bold>{"Examples"}</span>
-            </text>
-            <text>
-              <span fg={C.white} bold>{"  kimi-*"}</span>
-            </text>
-            <RoutingChain
-              chain={["kimi", "openrouter"]}
-              description="Try Kimi first, fall back to OpenRouter"
-            />
-            <text>
-              <span fg={C.white} bold>{"  gpt-*"}</span>
-            </text>
-            <RoutingChain
-              chain={["oai", "litellm"]}
-              description="Use OpenAI direct, then LiteLLM proxy"
-            />
-            <text>
-              <span fg={C.white} bold>{"  gemini-*"}</span>
-            </text>
-            <RoutingChain
-              chain={["google", "zen", "openrouter"]}
-              description="Gemini direct → Zen free tier → OpenRouter"
-            />
-            <text>
-              <span fg={C.white} bold>{"  *"}</span>
-            </text>
-            <RoutingChain
-              chain={["zen", "openrouter"]}
-              description="Catch-all: try free Zen first"
-            />
-          </>
+          <text>
+            <span fg={C.fgMuted}>{"  No custom rules. Press "}</span>
+            <span fg={C.green} bold>a</span>
+            <span fg={C.fgMuted}>{" to add one."}</span>
+          </text>
         )}
         {ruleEntries.length > 0 && (
           <>
@@ -598,13 +574,8 @@ export function App() {
                     <span fg={sel ? C.white : C.fgMuted} bold={sel}>
                       {pat.padEnd(16).substring(0, 16)}
                     </span>
-                    <span fg={C.dim}>{" → "}</span>
-                    {chain.map((p, i) => (
-                      <span key={p}>
-                        <span fg={sel ? C.cyan : C.dim}>{p}</span>
-                        {i < chain.length - 1 && <span fg={C.dim}>{" → "}</span>}
-                      </span>
-                    ))}
+                    <span fg={C.dim}>{"  "}</span>
+                    <span fg={sel ? C.cyan : C.fgMuted}>{chainStr(chain)}</span>
                   </text>
                 </box>
               );
@@ -679,26 +650,33 @@ export function App() {
         border
         borderStyle="single"
         borderColor={C.dim}
-        title=" How Routing Works "
+        title=" Examples "
         backgroundColor={C.bgAlt}
         flexDirection="column"
         paddingX={1}
       >
         <text>
-          <span fg={C.fgMuted}>{"Claudish matches model names against "}</span>
-          <span fg={C.blue} bold>Patterns</span>
-          <span fg={C.fgMuted}>{" (like "}</span>
-          <span fg={C.white}>gpt-*</span>
-          <span fg={C.fgMuted}>{") and tries providers in the "}</span>
-          <span fg={C.blue} bold>Chain</span>
-          <span fg={C.fgMuted}>{" in order."}</span>
+          <span fg={C.dim}>{"kimi-*  "}</span>
+          <span fg={C.fgMuted}>{"kimi → or"}</span>
+          <span fg={C.dim}>{"          "}</span>
+          <span fg={C.dim}>{"gpt-*  "}</span>
+          <span fg={C.fgMuted}>{"oai → litellm"}</span>
+          <span fg={C.dim}>{"          "}</span>
+          <span fg={C.dim}>{"gemini-*  "}</span>
+          <span fg={C.fgMuted}>{"google → zen → or"}</span>
         </text>
         <text>
-          <span fg={C.fgMuted}>The first provider that responds successfully is used.</span>
+          <span fg={C.dim}>{"glm-*  "}</span>
+          <span fg={C.fgMuted}>{"glm → zen → or"}</span>
+          <span fg={C.dim}>{"       "}</span>
+          <span fg={C.dim}>{"deepseek-*  "}</span>
+          <span fg={C.fgMuted}>{"zen → or"}</span>
+          <span fg={C.dim}>{"             "}</span>
+          <span fg={C.dim}>{"Pattern: glob (* = any)"}</span>
         </text>
         <text>
           <span fg={C.cyan} bold>{ruleEntries.length}</span>
-          <span fg={C.fgMuted}>{` rule${ruleEntries.length !== 1 ? "s" : ""} configured`}</span>
+          <span fg={C.fgMuted}>{` custom rule${ruleEntries.length !== 1 ? "s" : ""}`}</span>
         </text>
       </box>
     );
@@ -858,11 +836,9 @@ export function App() {
         <text>
           {keys.map(([color, key, label], i) => (
             <span key={i}>
-              {i > 0 && <span>{"   "}</span>}
-              <span fg={C.black} backgroundColor={color as string} bold>
-                {` ${key} `}
-              </span>
-              <span fg={C.white}>{` ${label}`}</span>
+              {i > 0 && <span fg={C.dim}>{" │ "}</span>}
+              <span fg={color as string} bold>{key}</span>
+              <span fg={C.fgMuted}>{" "}{label}</span>
             </span>
           ))}
         </text>

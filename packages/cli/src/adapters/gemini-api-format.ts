@@ -1,5 +1,5 @@
 /**
- * Gemini Adapter
+ * GeminiAPIFormat — Layer 1 wire format for Google Gemini generateContent API.
  *
  * Handles Gemini-specific transformations:
  * - Message conversion: Claude → Gemini parts format (user→user, assistant→model)
@@ -8,10 +8,10 @@
  * - thoughtSignature tracking across requests (required for Gemini 3/2.5 thinking)
  * - Reasoning text filtering (removes leaked internal monologue)
  *
- * Used with GeminiApiKeyProvider (direct API) and GeminiCodeAssistProvider (OAuth).
+ * Used with GeminiProviderTransport (direct API) and GeminiCodeAssistProviderTransport (OAuth).
  */
 
-import { BaseModelAdapter, type AdapterResult, matchesModelFamily } from "./base-adapter.js";
+import { BaseAPIFormat, type AdapterResult, matchesModelFamily } from "./base-api-format.js";
 import { convertToolsToGemini } from "../handlers/shared/gemini-schema.js";
 import { filterIdentity } from "../handlers/shared/openai-compat.js";
 import { log } from "../logger.js";
@@ -61,7 +61,7 @@ const REASONING_CONTINUATION_PATTERNS = [
   /^The\s+`[^`]+`\s+(?:is|has|contains|needs|should)/i,
 ];
 
-export class GeminiAdapter extends BaseModelAdapter {
+export class GeminiAPIFormat extends BaseAPIFormat {
   /**
    * Map of tool_use_id → { name, thoughtSignature }.
    * Persists across requests (NOT cleared in reset) because Gemini requires
@@ -115,7 +115,7 @@ export class GeminiAdapter extends BaseModelAdapter {
           const toolInfo = this.toolCallMap.get(block.tool_use_id);
           if (!toolInfo) {
             log(
-              `[GeminiAdapter] Warning: No function name found for tool_use_id ${block.tool_use_id}`
+              `[GeminiAPIFormat] Warning: No function name found for tool_use_id ${block.tool_use_id}`
             );
             continue;
           }
@@ -155,7 +155,7 @@ export class GeminiAdapter extends BaseModelAdapter {
           if (!thoughtSignature) {
             thoughtSignature = "skip_thought_signature_validator";
             log(
-              `[GeminiAdapter] Using dummy thoughtSignature for tool ${block.name} (${block.id})`
+              `[GeminiAPIFormat] Using dummy thoughtSignature for tool ${block.name} (${block.id})`
             );
           }
 
@@ -254,7 +254,7 @@ export class GeminiAdapter extends BaseModelAdapter {
   registerToolCall(toolId: string, name: string, thoughtSignature?: string): void {
     this.toolCallMap.set(toolId, { name, thoughtSignature });
     if (thoughtSignature) {
-      log(`[GeminiAdapter] Captured thoughtSignature for tool ${name} (${toolId})`);
+      log(`[GeminiAPIFormat] Captured thoughtSignature for tool ${name} (${toolId})`);
     }
   }
 
@@ -278,7 +278,7 @@ export class GeminiAdapter extends BaseModelAdapter {
       }
 
       if (this.isReasoningLine(trimmed)) {
-        log(`[GeminiAdapter] Filtered reasoning: "${trimmed.substring(0, 50)}..."`);
+        log(`[GeminiAPIFormat] Filtered reasoning: "${trimmed.substring(0, 50)}..."`);
         wasFiltered = true;
         this.inReasoningBlock = true;
         this.reasoningBlockDepth++;
@@ -286,7 +286,7 @@ export class GeminiAdapter extends BaseModelAdapter {
       }
 
       if (this.inReasoningBlock && this.isReasoningContinuation(trimmed)) {
-        log(`[GeminiAdapter] Filtered reasoning continuation: "${trimmed.substring(0, 50)}..."`);
+        log(`[GeminiAPIFormat] Filtered reasoning continuation: "${trimmed.substring(0, 50)}..."`);
         wasFiltered = true;
         continue;
       }
@@ -316,7 +316,7 @@ export class GeminiAdapter extends BaseModelAdapter {
     return REASONING_CONTINUATION_PATTERNS.some((pattern) => pattern.test(line));
   }
 
-  // ─── Adapter metadata ─────────────────────────────────────────────
+  // ─── Format metadata ─────────────────────────────────────────────
 
   override getStreamFormat(): StreamFormat {
     return "gemini-sse";
@@ -342,7 +342,7 @@ export class GeminiAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "GeminiAdapter";
+    return "GeminiAPIFormat";
   }
 
   /**
@@ -388,3 +388,7 @@ export class GeminiAdapter extends BaseModelAdapter {
     return result;
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use GeminiAPIFormat */
+export { GeminiAPIFormat as GeminiAdapter };

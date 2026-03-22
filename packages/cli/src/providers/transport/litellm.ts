@@ -18,7 +18,7 @@ const MODEL_EXTRA_HEADERS: Array<{ pattern: string; headers: Record<string, stri
   { pattern: "kimi", headers: { "User-Agent": "claude-code/1.0" } },
 ];
 
-export class LiteLLMProvider implements ProviderTransport {
+export class LiteLLMProviderTransport implements ProviderTransport {
   readonly name = "litellm";
   readonly displayName = "LiteLLM";
   readonly streamFormat: StreamFormat = "openai-sse";
@@ -82,3 +82,7 @@ export class LiteLLMProvider implements ProviderTransport {
     return found ? merged : null;
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use LiteLLMProviderTransport */
+export { LiteLLMProviderTransport as LiteLLMProvider };

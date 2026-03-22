@@ -1,5 +1,5 @@
 /**
- * Xiaomi (MiMo) Model Adapter
+ * XiaomiModelDialect — Layer 2 dialect for Xiaomi (MiMo) models.
  *
  * Handles Xiaomi-specific quirks:
  * - 64-char tool name limit (OpenAI standard, strictly enforced by Xiaomi API)
@@ -7,10 +7,10 @@
  * - Context window comes dynamically from OpenRouter model catalog
  */
 
-import { BaseModelAdapter, AdapterResult, matchesModelFamily } from "./base-adapter";
-import { log } from "../logger";
+import { BaseAPIFormat, AdapterResult, matchesModelFamily } from "./base-api-format.js";
+import { log } from "../logger.js";
 
-export class XiaomiAdapter extends BaseModelAdapter {
+export class XiaomiModelDialect extends BaseAPIFormat {
   processTextContent(textContent: string, accumulatedText: string): AdapterResult {
     return {
       cleanedText: textContent,
@@ -26,7 +26,7 @@ export class XiaomiAdapter extends BaseModelAdapter {
   override prepareRequest(request: any, originalRequest: any): any {
     // Xiaomi doesn't support thinking params
     if (originalRequest.thinking) {
-      log(`[XiaomiAdapter] Stripping thinking object (not supported by Xiaomi API)`);
+      log(`[XiaomiModelDialect] Stripping thinking object (not supported by Xiaomi API)`);
       delete request.thinking;
     }
 
@@ -44,6 +44,10 @@ export class XiaomiAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "XiaomiAdapter";
+    return "XiaomiModelDialect";
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use XiaomiModelDialect */
+export { XiaomiModelDialect as XiaomiAdapter };

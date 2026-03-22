@@ -1,5 +1,5 @@
 /**
- * FormatConverter — translates between Claude API format and target model's wire format.
+ * APIFormat — translates between Claude API format and target model's wire format.
  *
  * Each implementation represents a distinct API contract:
  * - OpenAI Chat Completions format
@@ -7,13 +7,13 @@
  * - Gemini generateContent format
  * - Ollama chat format
  *
- * The converter also declares which stream format its target API returns,
+ * The format also declares which stream format its target API returns,
  * so the correct stream parser is selected automatically.
  */
 
 import type { StreamFormat } from "../providers/transport/types.js";
 
-export interface FormatConverter {
+export interface APIFormat {
   /** Convert Claude-format messages to the target API format */
   convertMessages(claudeRequest: any, filterIdentityFn?: (s: string) => string): any[];
 
@@ -24,7 +24,7 @@ export interface FormatConverter {
   buildPayload(claudeRequest: any, messages: any[], tools: any[]): any;
 
   /**
-   * The stream format this converter's target API returns.
+   * The stream format this format's target API returns.
    * Used by ComposedHandler to select the correct stream parser.
    */
   getStreamFormat(): StreamFormat;
@@ -33,5 +33,5 @@ export interface FormatConverter {
   processTextContent(
     textContent: string,
     accumulatedText: string
-  ): import("./base-adapter.js").AdapterResult;
+  ): import("./base-api-format.js").AdapterResult;
 }

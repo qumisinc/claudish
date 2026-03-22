@@ -1,15 +1,15 @@
 /**
- * Anthropic Passthrough Adapter
+ * AnthropicAPIFormat — Layer 1 wire format for Anthropic Messages API.
  *
  * Identity transform for providers that speak native Anthropic/Claude API format.
  * Messages, tools, and payload are passed through as-is (no conversion to OpenAI format).
  * Used by: MiniMax, Kimi, Kimi Coding, Z.AI
  */
 
-import { BaseModelAdapter, type AdapterResult } from "./base-adapter.js";
+import { BaseAPIFormat, type AdapterResult } from "./base-api-format.js";
 import type { StreamFormat } from "../providers/transport/types.js";
 
-export class AnthropicPassthroughAdapter extends BaseModelAdapter {
+export class AnthropicAPIFormat extends BaseAPIFormat {
   private providerName: string;
 
   constructor(modelId: string, providerName: string) {
@@ -30,7 +30,7 @@ export class AnthropicPassthroughAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "AnthropicPassthroughAdapter";
+    return "AnthropicAPIFormat";
   }
 
   /**
@@ -141,3 +141,7 @@ export class AnthropicPassthroughAdapter extends BaseModelAdapter {
     return true; // These providers handle vision natively
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use AnthropicAPIFormat */
+export { AnthropicAPIFormat as AnthropicPassthroughAdapter };

@@ -6,14 +6,14 @@
 //
 // REGRESSION: kimi-k2.5 turn 2 fails with "unsupported content type: tool_reference"
 //
-// Root cause: AnthropicPassthroughAdapter.convertMessages() passed tool_reference blocks
+// Root cause: AnthropicAPIFormat.convertMessages() passed tool_reference blocks
 // as-is. tool_reference is a Claude Code-internal type for deferred tool loading (ToolSearch)
 // and is not part of the Anthropic public API spec — Kimi rejects it with HTTP 400.
 // Fix: stripUnsupportedContentTypes() filters tool_reference from tool_result content arrays.
 
 import { describe, it, expect } from "bun:test";
 import { AnthropicCompatProvider } from "./anthropic-compat.js";
-import { AnthropicPassthroughAdapter } from "../../adapters/anthropic-passthrough-adapter.js";
+import { AnthropicAPIFormat } from "../../adapters/anthropic-api-format.js";
 import type { RemoteProvider } from "../../../handlers/shared/remote-provider-types.js";
 
 const TEST_API_KEY = "test-key-abc123";
@@ -74,8 +74,8 @@ describe("AnthropicCompatProvider.getHeaders()", () => {
   });
 });
 
-describe("AnthropicPassthroughAdapter — tool_reference stripping", () => {
-  const adapter = new AnthropicPassthroughAdapter("kimi-k2.5", "kimi");
+describe("AnthropicAPIFormat — tool_reference stripping", () => {
+  const adapter = new AnthropicAPIFormat("kimi-k2.5", "kimi");
 
   it("strips tool_reference blocks from tool_result content", () => {
     const request = {

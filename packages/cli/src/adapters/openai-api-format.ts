@@ -1,5 +1,5 @@
 /**
- * OpenAI adapter for handling OpenAI-specific model behaviors
+ * OpenAIAPIFormat — Layer 1 wire format for OpenAI Chat Completions API.
  *
  * Handles:
  * - Context window detection for OpenAI models (gpt-*, o1, o3, codex)
@@ -7,13 +7,15 @@
  * - max_completion_tokens vs max_tokens for newer models
  * - Codex Responses API message conversion and payload building
  * - Tool choice mapping
+ *
+ * Also serves as Layer 2 ModelDialect for OpenAI-native models (o1/o3 reasoning params).
  */
 
-import { BaseModelAdapter, type AdapterResult } from "./base-adapter.js";
+import { BaseAPIFormat, type AdapterResult } from "./base-api-format.js";
 import { log } from "../logger.js";
 import type { StreamFormat } from "../providers/transport/types.js";
 
-export class OpenAIAdapter extends BaseModelAdapter {
+export class OpenAIAPIFormat extends BaseAPIFormat {
   constructor(modelId: string) {
     super(modelId);
   }
@@ -44,7 +46,7 @@ export class OpenAIAdapter extends BaseModelAdapter {
 
       request.reasoning_effort = effort;
       delete request.thinking;
-      log(`[OpenAIAdapter] Mapped budget ${budget_tokens} -> reasoning_effort: ${effort}`);
+      log(`[OpenAIAPIFormat] Mapped budget ${budget_tokens} -> reasoning_effort: ${effort}`);
     }
 
     // Truncate tool names if model has a limit
@@ -61,7 +63,7 @@ export class OpenAIAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "OpenAIAdapter";
+    return "OpenAIAPIFormat";
   }
 
   // ─── ComposedHandler integration ───────────────────────────────────
@@ -137,11 +139,14 @@ export class OpenAIAdapter extends BaseModelAdapter {
       else if (budget_tokens >= 32000) effort = "high";
       payload.reasoning_effort = effort;
       log(
-        `[OpenAIAdapter] Mapped thinking.budget_tokens ${budget_tokens} -> reasoning_effort: ${effort}`
+        `[OpenAIAPIFormat] Mapped thinking.budget_tokens ${budget_tokens} -> reasoning_effort: ${effort}`
       );
     }
 
     return payload;
   }
-
 }
+
+// Backward-compatible alias
+/** @deprecated Use OpenAIAPIFormat */
+export { OpenAIAPIFormat as OpenAIAdapter };

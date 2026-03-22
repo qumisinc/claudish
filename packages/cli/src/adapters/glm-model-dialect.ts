@@ -1,5 +1,5 @@
 /**
- * GLM (Zhipu AI) Model Adapter
+ * GLMModelDialect — Layer 2 dialect for Zhipu AI GLM models.
  *
  * Handles GLM-specific quirks:
  * - Context window sizes per model variant
@@ -7,8 +7,8 @@
  * - Vision support detection
  */
 
-import { BaseModelAdapter, AdapterResult, matchesModelFamily } from "./base-adapter";
-import { log } from "../logger";
+import { BaseAPIFormat, AdapterResult, matchesModelFamily } from "./base-api-format.js";
+import { log } from "../logger.js";
 
 /** GLM model context windows (pattern-match, checked in order) */
 const GLM_CONTEXT_WINDOWS: Array<[string, number]> = [
@@ -34,7 +34,7 @@ const GLM_CONTEXT_WINDOWS: Array<[string, number]> = [
 /** GLM models that support vision (explicit list for clarity) */
 const GLM_VISION_MODELS = ["glm-4v", "glm-4v-plus", "glm-4.5v", "glm-4.6v", "glm-5"];
 
-export class GLMAdapter extends BaseModelAdapter {
+export class GLMModelDialect extends BaseAPIFormat {
   processTextContent(textContent: string, accumulatedText: string): AdapterResult {
     return {
       cleanedText: textContent,
@@ -46,7 +46,7 @@ export class GLMAdapter extends BaseModelAdapter {
   override prepareRequest(request: any, originalRequest: any): any {
     // GLM doesn't support thinking params via API
     if (originalRequest.thinking) {
-      log(`[GLMAdapter] Stripping thinking object (not supported by GLM API)`);
+      log(`[GLMModelDialect] Stripping thinking object (not supported by GLM API)`);
       delete request.thinking;
     }
 
@@ -58,7 +58,7 @@ export class GLMAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "GLMAdapter";
+    return "GLMModelDialect";
   }
 
   getContextWindow(): number {
@@ -74,3 +74,7 @@ export class GLMAdapter extends BaseModelAdapter {
     return GLM_VISION_MODELS.some((m) => lower.includes(m));
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use GLMModelDialect */
+export { GLMModelDialect as GLMAdapter };

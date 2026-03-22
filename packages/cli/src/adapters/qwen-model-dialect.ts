@@ -1,5 +1,13 @@
-import { BaseModelAdapter, AdapterResult, matchesModelFamily } from "./base-adapter";
-import { log } from "../logger";
+/**
+ * QwenModelDialect — Layer 2 dialect for Qwen (Alibaba) models.
+ *
+ * Handles Qwen-specific quirks:
+ * - Strips special tokens from output
+ * - Maps thinking → enable_thinking + thinking_budget params
+ */
+
+import { BaseAPIFormat, AdapterResult, matchesModelFamily } from "./base-api-format.js";
+import { log } from "../logger.js";
 
 // Qwen special tokens that should be stripped from output
 const QWEN_SPECIAL_TOKENS = [
@@ -10,7 +18,7 @@ const QWEN_SPECIAL_TOKENS = [
   "assistant\n", // Role marker that sometimes leaks
 ];
 
-export class QwenAdapter extends BaseModelAdapter {
+export class QwenModelDialect extends BaseAPIFormat {
   processTextContent(textContent: string, accumulatedText: string): AdapterResult {
     // Strip Qwen special tokens that may leak through
     // This can happen when the model gets confused and outputs its chat template
@@ -53,7 +61,7 @@ export class QwenAdapter extends BaseModelAdapter {
       request.thinking_budget = budget_tokens;
 
       log(
-        `[QwenAdapter] Mapped budget ${budget_tokens} -> enable_thinking: true, thinking_budget: ${budget_tokens}`
+        `[QwenModelDialect] Mapped budget ${budget_tokens} -> enable_thinking: true, thinking_budget: ${budget_tokens}`
       );
 
       // Cleanup: Remove raw thinking object
@@ -68,6 +76,10 @@ export class QwenAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "QwenAdapter";
+    return "QwenModelDialect";
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use QwenModelDialect */
+export { QwenModelDialect as QwenAdapter };

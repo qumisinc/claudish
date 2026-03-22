@@ -15,7 +15,7 @@ import { getCachedOpenRouterModels } from "../../model-loader.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-export class OpenRouterProvider implements ProviderTransport {
+export class OpenRouterProviderTransport implements ProviderTransport {
   readonly name = "openrouter";
   readonly displayName = "OpenRouter";
   readonly streamFormat: StreamFormat = "openai-sse";
@@ -64,3 +64,7 @@ export class OpenRouterProvider implements ProviderTransport {
     return model?.context_length || model?.top_provider?.context_length || 200_000;
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use OpenRouterProviderTransport */
+export { OpenRouterProviderTransport as OpenRouterProvider };

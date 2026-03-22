@@ -160,7 +160,7 @@ export class OpentUiDiagOutput implements DiagOutput {
     if (this.messages.length > 4) {
       this.messages = this.messages.slice(-4);
     }
-    this.runner.showDiag(this.messages);
+    this.runner.showDiag(this.messages).catch(() => {}); // fire-and-forget
   }
 
   cleanup(): void {

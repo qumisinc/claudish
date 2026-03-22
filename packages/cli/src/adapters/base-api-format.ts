@@ -1,5 +1,6 @@
 /**
- * Base adapter for model-specific transformations
+ * Base class for API format implementations (Layer 1) and model dialect
+ * implementations (Layer 2).
  *
  * Different models have different quirks that need translation:
  * - Grok: XML function calls instead of JSON tool_calls
@@ -11,8 +12,8 @@ import { truncateToolName } from "./tool-name-utils.js";
 import type { ModelPricing } from "../handlers/shared/remote-provider-types.js";
 import { getModelPricing } from "../handlers/shared/remote-provider-types.js";
 import type { StreamFormat } from "../providers/transport/types.js";
-import type { FormatConverter } from "./format-converter.js";
-import type { ModelTranslator } from "./model-translator.js";
+import type { APIFormat } from "./api-format.js";
+import type { ModelDialect } from "./model-dialect.js";
 
 /**
  * Match a model ID against a model family name, handling vendor-prefixed IDs.
@@ -46,7 +47,7 @@ export interface AdapterResult {
   wasTransformed: boolean;
 }
 
-export abstract class BaseModelAdapter implements FormatConverter, ModelTranslator {
+export abstract class BaseAPIFormat implements APIFormat, ModelDialect {
   protected modelId: string;
 
   /**
@@ -68,12 +69,12 @@ export abstract class BaseModelAdapter implements FormatConverter, ModelTranslat
   abstract processTextContent(textContent: string, accumulatedText: string): AdapterResult;
 
   /**
-   * Check if this adapter should be used for the given model
+   * Check if this format/dialect should be used for the given model
    */
   abstract shouldHandle(modelId: string): boolean;
 
   /**
-   * Get adapter name for logging
+   * Get name for logging
    */
   abstract getName(): string;
 
@@ -119,8 +120,8 @@ export abstract class BaseModelAdapter implements FormatConverter, ModelTranslat
   }
 
   // ─── ComposedHandler integration (Phase 1c) ───────────────────────
-  // These methods have sensible defaults so existing adapters continue
-  // to work unchanged. Override in specific adapters as needed.
+  // These methods have sensible defaults so existing implementations continue
+  // to work unchanged. Override in specific classes as needed.
 
   /**
    * Convert Claude-format messages to the target API format.
@@ -163,7 +164,7 @@ export abstract class BaseModelAdapter implements FormatConverter, ModelTranslat
   }
 
   /**
-   * The stream format this adapter's target API returns.
+   * The stream format this format's target API returns.
    * Default: "openai-sse" (most common format).
    * Override for Anthropic passthrough ("anthropic-sse"), Gemini ("gemini-sse"), etc.
    */
@@ -245,9 +246,9 @@ export abstract class BaseModelAdapter implements FormatConverter, ModelTranslat
 }
 
 /**
- * Default adapter that does no transformation
+ * Default format/dialect that does no transformation
  */
-export class DefaultAdapter extends BaseModelAdapter {
+export class DefaultAPIFormat extends BaseAPIFormat {
   processTextContent(textContent: string, accumulatedText: string): AdapterResult {
     return {
       cleanedText: textContent,
@@ -257,10 +258,22 @@ export class DefaultAdapter extends BaseModelAdapter {
   }
 
   shouldHandle(modelId: string): boolean {
-    return false; // Default adapter is fallback
+    return false; // Default is fallback
   }
 
   getName(): string {
-    return "DefaultAdapter";
+    return "DefaultAPIFormat";
   }
 }
+
+// ─── Backward-compatible aliases ──────────────────────────────────────────────
+// Keep old names as aliases so legacy code referencing them still compiles
+// during the transition. These can be removed in a future cleanup pass.
+
+/** @deprecated Use BaseAPIFormat */
+export const BaseModelAdapter = BaseAPIFormat;
+export type BaseModelAdapter = BaseAPIFormat;
+
+/** @deprecated Use DefaultAPIFormat */
+export const DefaultAdapter = DefaultAPIFormat;
+export type DefaultAdapter = DefaultAPIFormat;

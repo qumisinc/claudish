@@ -8,7 +8,7 @@
 import type { ProviderTransport, StreamFormat } from "./types.js";
 import type { RemoteProvider } from "../../handlers/shared/remote-provider-types.js";
 
-export class OllamaCloudProvider implements ProviderTransport {
+export class OllamaProviderTransport implements ProviderTransport {
   readonly name = "ollamacloud";
   readonly displayName = "OllamaCloud";
   readonly streamFormat: StreamFormat = "ollama-jsonl";
@@ -33,3 +33,7 @@ export class OllamaCloudProvider implements ProviderTransport {
     return headers;
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use OllamaProviderTransport */
+export { OllamaProviderTransport as OllamaCloudProvider };

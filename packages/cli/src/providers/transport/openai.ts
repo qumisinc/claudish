@@ -10,7 +10,7 @@ import type { ProviderTransport, StreamFormat } from "./types.js";
 import type { RemoteProvider } from "../../handlers/shared/remote-provider-types.js";
 import { log } from "../../logger.js";
 
-export class OpenAIProvider implements ProviderTransport {
+export class OpenAIProviderTransport implements ProviderTransport {
   readonly name: string;
   readonly displayName: string;
   readonly streamFormat: StreamFormat;
@@ -24,7 +24,7 @@ export class OpenAIProvider implements ProviderTransport {
     this.modelName = modelName;
     this.apiKey = apiKey;
     this.name = provider.name;
-    this.displayName = OpenAIProvider.formatDisplayName(provider.name);
+    this.displayName = OpenAIProviderTransport.formatDisplayName(provider.name);
 
     // Codex models use the Responses API which has a different streaming format
     this.streamFormat = modelName.toLowerCase().includes("codex")
@@ -75,7 +75,7 @@ export class OpenAIProvider implements ProviderTransport {
     }
   }
 
-  private static formatDisplayName(name: string): string {
+  static formatDisplayName(name: string): string {
     if (name === "opencode-zen") return "Zen";
     if (name === "opencode-zen-go") return "Zen Go";
     if (name === "glm") return "GLM";
@@ -100,3 +100,7 @@ export class OpenAIConnectionError extends Error {
     this.name = "OpenAIConnectionError";
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use OpenAIProviderTransport */
+export { OpenAIProviderTransport as OpenAIProvider };

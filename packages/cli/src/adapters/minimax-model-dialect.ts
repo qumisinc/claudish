@@ -1,7 +1,14 @@
-import { BaseModelAdapter, AdapterResult, matchesModelFamily } from "./base-adapter";
-import { log } from "../logger";
+/**
+ * MiniMaxModelDialect — Layer 2 dialect for MiniMax models.
+ *
+ * Handles MiniMax-specific quirks:
+ * - Maps thinking → reasoning_split boolean
+ */
 
-export class MiniMaxAdapter extends BaseModelAdapter {
+import { BaseAPIFormat, AdapterResult, matchesModelFamily } from "./base-api-format.js";
+import { log } from "../logger.js";
+
+export class MiniMaxModelDialect extends BaseAPIFormat {
   processTextContent(textContent: string, accumulatedText: string): AdapterResult {
     // MiniMax interleaved thinking is handled by the model
     return {
@@ -19,7 +26,7 @@ export class MiniMaxAdapter extends BaseModelAdapter {
       // MiniMax uses reasoning_split boolean
       request.reasoning_split = true;
 
-      log(`[MiniMaxAdapter] Enabled reasoning_split: true`);
+      log(`[MiniMaxModelDialect] Enabled reasoning_split: true`);
 
       // Cleanup: Remove raw thinking object
       delete request.thinking;
@@ -33,6 +40,10 @@ export class MiniMaxAdapter extends BaseModelAdapter {
   }
 
   getName(): string {
-    return "MiniMaxAdapter";
+    return "MiniMaxModelDialect";
   }
 }
+
+// Backward-compatible alias
+/** @deprecated Use MiniMaxModelDialect */
+export { MiniMaxModelDialect as MiniMaxAdapter };

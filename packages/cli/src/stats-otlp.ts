@@ -38,7 +38,7 @@ export interface StatsEvent {
   token_strategy: string; // "standard" | "delta-aware" | etc.
 
   // Transforms
-  adapter_name: string; // e.g., "GLMAdapter", "DefaultAdapter"
+  adapter_name: string; // e.g., "GLMModelDialect", "DefaultAPIFormat"
   middleware_names: string[]; // names only, no details
 
   // Fallback

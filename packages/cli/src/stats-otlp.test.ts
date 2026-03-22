@@ -29,7 +29,7 @@ const SAMPLE_EVENT: StatsEvent = {
   estimated_cost: 0.00234,
   is_free_model: false,
   token_strategy: "standard",
-  adapter_name: "DefaultAdapter",
+  adapter_name: "DefaultAPIFormat",
   middleware_names: ["GeminiThoughtSignature"],
   fallback_used: false,
   invocation_mode: "auto-route",
