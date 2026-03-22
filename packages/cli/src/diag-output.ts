@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { WriteStream } from "node:fs";
+import type { PtyDiagRunner } from "./pty-diag-runner.js";
 
 /**
  * DiagOutput separates claudish diagnostic messages from Claude Code's TUI.
@@ -139,6 +140,35 @@ export class TmuxDiagOutput extends LogFileDiagOutput {
 }
 
 /**
+ * OpentUiDiagOutput routes diagnostics through the PtyDiagRunner's opentui
+ * split panel. Shows errors dynamically at the bottom of the terminal,
+ * auto-hides after 10s. Works everywhere — no tmux required.
+ */
+export class OpentUiDiagOutput implements DiagOutput {
+  private messages: Array<{ text: string; level: "error" | "warn" | "info" }> = [];
+
+  constructor(private runner: PtyDiagRunner) {}
+
+  write(msg: string): void {
+    const level = msg.toLowerCase().includes("error")
+      ? "error" as const
+      : msg.toLowerCase().includes("warn")
+        ? "warn" as const
+        : "info" as const;
+    this.messages.push({ text: msg, level });
+    // Keep last 4 messages
+    if (this.messages.length > 4) {
+      this.messages = this.messages.slice(-4);
+    }
+    this.runner.showDiag(this.messages);
+  }
+
+  cleanup(): void {
+    this.runner.hideDiag();
+  }
+}
+
+/**
  * NullDiagOutput is a no-op. Used in single-shot mode where stderr is
  * available normally (Claude Code not running as TUI).
  */
@@ -153,19 +183,50 @@ export class NullDiagOutput implements DiagOutput {
 }
 
 /**
- * Factory: create the appropriate DiagOutput based on the runtime environment.
+ * Factory: create the appropriate DiagOutput based on config and environment.
  *
- * - NOT interactive → NullDiagOutput (single-shot mode uses stderr normally)
- * - Interactive + TMUX env var → TmuxDiagOutput (live pane + log file)
- * - Interactive + no tmux → LogFileDiagOutput (log file only)
+ * diagMode controls which implementation is used:
+ *   "auto" (default) → PTY runner → tmux → log file (priority order)
+ *   "pty"            → PTY runner only (fall back to logfile if unavailable)
+ *   "tmux"           → tmux pane only (fall back to logfile if not in tmux)
+ *   "logfile"        → log file only (no live display)
+ *   "off"            → no diagnostics at all
+ *
+ * Env var: CLAUDISH_DIAG_MODE=pty|tmux|logfile|off
+ * CLI flag: --diag-mode pty|tmux|logfile|off
  */
-export function createDiagOutput(options: { interactive: boolean }): DiagOutput {
+export function createDiagOutput(options: {
+  interactive: boolean;
+  ptyRunner?: PtyDiagRunner | null;
+  diagMode?: "auto" | "pty" | "tmux" | "logfile" | "off";
+}): DiagOutput {
   if (!options.interactive) {
     return new NullDiagOutput();
   }
 
-  if (process.env.TMUX) {
-    return new TmuxDiagOutput();
+  const mode = options.diagMode || "auto";
+
+  if (mode === "off") {
+    return new NullDiagOutput();
+  }
+
+  if (mode === "pty" || mode === "auto") {
+    if (options.ptyRunner) {
+      return new OpentUiDiagOutput(options.ptyRunner);
+    }
+    // pty explicitly requested but unavailable — fall through
+    if (mode === "pty") {
+      return new LogFileDiagOutput();
+    }
+  }
+
+  if (mode === "tmux" || mode === "auto") {
+    if (process.env.TMUX) {
+      return new TmuxDiagOutput();
+    }
+    if (mode === "tmux") {
+      return new LogFileDiagOutput();
+    }
   }
 
   return new LogFileDiagOutput();

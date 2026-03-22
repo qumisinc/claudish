@@ -6,6 +6,7 @@ import { join, basename } from "node:path";
 import { ENV } from "./config.js";
 import type { ClaudishConfig } from "./types.js";
 import { parseModelSpec } from "./providers/model-parser.js";
+import type { PtyDiagRunner } from "./pty-diag-runner.js";
 
 /**
  * Check if any resolved model mapping targets a native Anthropic model (claude-*).
@@ -242,7 +243,8 @@ function mergeUserSettingsIfPresent(
 export async function runClaudeWithProxy(
   config: ClaudishConfig,
   proxyUrl: string,
-  onCleanup?: () => void
+  onCleanup?: () => void,
+  ptyDiagRunner?: PtyDiagRunner | null
 ): Promise<number> {
   // Use actual OpenRouter model ID (no translation)
   // This ensures ANY model works, not just our shortlist
@@ -401,32 +403,50 @@ export async function runClaudeWithProxy(
     process.exit(1);
   }
 
-  // Spawn claude CLI process using Node.js child_process (works on both Node.js and Bun)
-  // On Windows, .cmd files require shell:true — spawn() throws EINVAL without it.
-  // When using shell mode, quote the binary path to handle spaces (e.g. "C:\Program Files\...")
+  // Spawn claude CLI process.
+  // PTY path: when ptyDiagRunner is available in interactive mode, spawn via Bun's
+  // native PTY. This routes Claude Code's output through process.stdout.write so
+  // opentui can intercept it and show the diagnostic split-panel.
+  // Fallback path: standard stdio: 'inherit' spawn (non-interactive or no PTY).
   const needsShell = isWindows() && claudeBinary.endsWith(".cmd");
   const spawnCommand = needsShell ? `"${claudeBinary}"` : claudeBinary;
-  const proc = spawn(spawnCommand, claudeArgs, {
-    env,
-    stdio: "inherit", // Stream stdin/stdout/stderr to parent
-    shell: needsShell,
-  });
 
-  // Handle process termination signals (includes cleanup)
-  setupSignalHandlers(proc, tempSettingsPath, config.quiet, onCleanup);
+  let exitCode: number;
 
-  // Wait for claude to exit
-  const exitCode = await new Promise<number>((resolve) => {
-    proc.on("exit", (code) => {
-      resolve(code ?? 1);
+  if (config.interactive && ptyDiagRunner) {
+    // PTY path: feeds opentui splitHeight capture
+    exitCode = await ptyDiagRunner.run(spawnCommand, claudeArgs, env);
+
+    // Clean up temporary settings file
+    try {
+      unlinkSync(tempSettingsPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+  } else {
+    // Standard stdio: 'inherit' path (non-interactive or PTY unavailable)
+    const proc = spawn(spawnCommand, claudeArgs, {
+      env,
+      stdio: "inherit",
+      shell: needsShell,
     });
-  });
 
-  // Clean up temporary settings file
-  try {
-    unlinkSync(tempSettingsPath);
-  } catch (error) {
-    // Ignore cleanup errors
+    // Handle process termination signals (includes cleanup)
+    setupSignalHandlers(proc, tempSettingsPath, config.quiet, onCleanup);
+
+    // Wait for claude to exit
+    exitCode = await new Promise<number>((resolve) => {
+      proc.on("exit", (code) => {
+        resolve(code ?? 1);
+      });
+    });
+
+    // Clean up temporary settings file
+    try {
+      unlinkSync(tempSettingsPath);
+    } catch {
+      // Ignore cleanup errors
+    }
   }
 
   return exitCode;
