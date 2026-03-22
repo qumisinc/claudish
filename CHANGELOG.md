@@ -2,6 +2,26 @@
 
 All notable changes to [Claudish](https://github.com/MadAppGang/claudish).
 
+## [5.19.0] - 2026-03-22
+
+### Bug Fixes
+
+- include missing files for v5.19.0 CI build([`655644d`](https://github.com/MadAppGang/claudish/commit/655644d1f8020063ed00a8cba690922440d0eb3e))
+- remove stale tests/ directory and export team-orchestrator helpers([`1608186`](https://github.com/MadAppGang/claudish/commit/1608186681974f18a66bb6de2b4f09f23b1051e5))
+
+### Documentation
+
+- update CHANGELOG.md for v5.18.1([`dfcef8f`](https://github.com/MadAppGang/claudish/commit/dfcef8f46ee4b4d8c2c09819635c82c139362ea7))
+
+### New Features
+
+- v5.19.0 - MCP team orchestrator, error reporting, TUI redesign([`821d348`](https://github.com/MadAppGang/claudish/commit/821d3484fd10b03d8317a91471e5358104f07939))
+
+### Other Changes
+
+- add FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 to all CI jobs([`1524747`](https://github.com/MadAppGang/claudish/commit/15247478063f2ce35ba391badea6aead1e5bf5aa))
+- upgrade GitHub Actions to Node.js 24 compatibility([`a2a6aca`](https://github.com/MadAppGang/claudish/commit/a2a6acace88313bef25b50f16948d520c1da12bf))
+
 ## [5.18.1] - 2026-03-22
 
 ### Documentation
