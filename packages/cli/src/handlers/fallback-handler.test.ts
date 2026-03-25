@@ -465,4 +465,19 @@ describe("Group 5: isRetryableError — unit tests via FallbackHandler behavior"
     const result = await runFallback(400, '{"error":"No healthy deployment available"}');
     expect(result.usedFallback).toBe(true);
   });
+
+  test("503 service unavailable is NOT retryable — stops immediately", async () => {
+    const result = await runFallback(503, '{"error":"service unavailable"}');
+    expect(result.usedFallback).toBe(false);
+  });
+
+  test("401 authentication_error (refreshAuth failure) is retryable — falls through to next provider", async () => {
+    // This covers the Gemini Code Assist onboarding failure path:
+    // refreshAuth() throws → ComposedHandler returns 401 → FallbackHandler tries next provider.
+    const result = await runFallback(
+      401,
+      '{"error":{"type":"authentication_error","message":"Gemini onboarding completed but no project ID returned."}}'
+    );
+    expect(result.usedFallback).toBe(true);
+  });
 });

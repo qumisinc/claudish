@@ -299,13 +299,19 @@ export class ComposedHandler implements ModelHandler {
           providerDisplayName: this.provider.displayName,
           streamFormat: this.provider.streamFormat,
           modelId: this.targetModel,
-          httpStatus: undefined,
+          httpStatus: 401,
           isStreaming: false,
           retryAttempted: false,
           isInteractive: this.isInteractive,
           authType: "oauth",
         });
-        return c.json({ error: { type: "connection_error", message: err.message } }, 503 as any);
+        // Return 401 (auth failure) so FallbackHandler treats this as retryable and
+        // moves to the next provider in the chain. 503 (connection error) would stop
+        // the fallback chain since it is not retryable by design.
+        return c.json(
+          { error: { type: "authentication_error", message: err.message } },
+          401 as any
+        );
       }
     }
     // Update context window if provider dynamically discovered it
