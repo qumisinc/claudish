@@ -37,10 +37,8 @@ export class MtmDiagRunner {
     this.statusPath = join(dir, `status-${process.pid}.txt`);
     this.logStream = createWriteStream(this.logPath, { flags: "w" });
     this.logStream.on("error", () => {}); // Best-effort
-    // Initialize status bar — must end with newline for tail -f -n1 to display
-    try {
-      writeFileSync(this.statusPath, renderStatusBar({ model: "", provider: "", errorCount: 0, lastError: "" }) + "\n");
-    } catch {}
+    // Status file is NOT pre-populated — mtm starts with full terminal.
+    // Status bar appears dynamically on first write (mtm reshapes the pane).
   }
 
   /**
@@ -70,8 +68,9 @@ export class MtmDiagRunner {
     // Launch mtm:
     // -e claudeCmd  : run claude in the main pane
     // -S statusPath : render status bar on the last row (not a pane, just 1 ncurses line)
+    // -L logPath    : diagnostic log file for expanded view (click status bar or Ctrl-G d)
     // stdio: inherit — mtm gets direct terminal access
-    this.mtmProc = spawn(mtmBin, ["-e", claudeCmd, "-S", this.statusPath], {
+    this.mtmProc = spawn(mtmBin, ["-e", claudeCmd, "-S", this.statusPath, "-L", this.logPath], {
       stdio: "inherit",
       env: mergedEnv,
     });
@@ -148,7 +147,8 @@ export class MtmDiagRunner {
     } else if (name.includes("/")) {
       this.provider = name.split("/")[0];
     }
-    this.refreshStatusBar();
+    // Don't write to status file yet — mtm starts with full terminal.
+    // Status bar appears on first diagnostic event (write() call).
   }
 
   /**
