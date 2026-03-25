@@ -2,6 +2,17 @@
 
 All notable changes to [Claudish](https://github.com/MadAppGang/claudish).
 
+## [6.3.1] - 2026-03-25
+
+### Bug Fixes
+
+- v6.3.1 - Gemini Code Assist auth failure falls through to Direct API([`692e207`](https://github.com/MadAppGang/claudish/commit/692e207e0895b20ba9ef07a79d936be6170cca77))
+- Gemini Code Assist auth failure now falls through to Google Direct API([`f063aad`](https://github.com/MadAppGang/claudish/commit/f063aade21fc6e6ba1a4b5134a506267a50907e9))
+
+### Documentation
+
+- update CHANGELOG.md for v6.3.0([`8f3bdc4`](https://github.com/MadAppGang/claudish/commit/8f3bdc4245aa4f2f9ba659762936615cafd87d11))
+
 ## [6.3.0] - 2026-03-25
 
 ### Documentation
