@@ -7,6 +7,7 @@ import { CollectorOrchestrator } from "./orchestrator.js";
 import { mergeResults } from "./merger.js";
 import { FirestoreWriter } from "./writer.js";
 import { handleQueryModels } from "./query-handler.js";
+import { handlePluginDefaults } from "./plugin-defaults-handler.js";
 
 initializeApp();
 const db = getFirestore();
@@ -203,6 +204,18 @@ export const queryModels = onRequest(
     cors: true,
   },
   handleQueryModels
+);
+
+// ─────────────────────────────────────────────────────────────
+// Plugin defaults — GET /plugin-defaults
+// ─────────────────────────────────────────────────────────────
+export const queryPluginDefaults = onRequest(
+  {
+    region: "us-central1",
+    maxInstances: 5,
+    cors: true,
+  },
+  handlePluginDefaults
 );
 
 // ─────────────────────────────────────────────────────────────

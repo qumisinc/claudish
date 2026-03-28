@@ -186,3 +186,15 @@ export interface CollectorResult {
   error?: string;              // set if collector partially or fully failed
   fetchedAt: Date;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Plugin defaults config document (config/plugin-defaults)
+// ─────────────────────────────────────────────────────────────
+export interface PluginDefaultsDoc {
+  version: string;
+  updatedAt: Timestamp;
+  updatedBy?: string;
+  shortAliases: Record<string, string>;
+  roles: Record<string, { modelId: string; fallback?: string }>;
+  teams: Record<string, string[]>;
+}

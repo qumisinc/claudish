@@ -18,5 +18,11 @@ service cloud.firestore {
         allow write: if false;
       }
     }
+
+    // Plugin config — public read, no client writes (only Cloud Functions / console)
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }
