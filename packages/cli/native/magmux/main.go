@@ -41,12 +41,15 @@ var (
 type Attr uint16
 
 const (
-	AttrBold    Attr = 1 << 0
-	AttrDim     Attr = 1 << 1
-	AttrItalic  Attr = 1 << 2
-	AttrBlink   Attr = 1 << 3
-	AttrReverse Attr = 1 << 4
-	AttrInvis   Attr = 1 << 5
+	AttrBold      Attr = 1 << 0
+	AttrDim       Attr = 1 << 1
+	AttrItalic    Attr = 1 << 2
+	AttrBlink     Attr = 1 << 3
+	AttrReverse   Attr = 1 << 4
+	AttrInvis     Attr = 1 << 5
+	AttrUnderline Attr = 1 << 6
+	AttrStrike    Attr = 1 << 7
+	AttrOverline  Attr = 1 << 8
 )
 
 // Color represents a terminal color: default (-1), 256-color (0-255), or truecolor
@@ -247,6 +250,12 @@ func (vt *VTParser) handleChar(w rune) {
 	// C0 controls that apply in ALL states
 	switch {
 	case w == 0x1b: // ESC
+		if vt.state == stOSCString {
+			// ESC in OSC string — next char should be '\' (ST)
+			// Terminate the OSC
+			vt.state = stEscape
+			return
+		}
 		vt.state = stEscape
 		vt.reset()
 		return
@@ -391,6 +400,10 @@ func (vt *VTParser) doControl(w rune) {
 	case 0x0d: // CR
 		s.curX = 0
 		s.xenl = false
+	case 0x0e: // SO — shift out (activate G1 charset)
+		p.useG1 = true
+	case 0x0f: // SI — shift in (activate G0 charset)
+		p.useG1 = false
 	}
 }
 
@@ -444,7 +457,30 @@ func (vt *VTParser) doEscape(w rune) {
 		s.fg = s.savedFg
 		s.bg = s.savedBg
 		s.attr = s.savedAttr
-	case '=', '>': // DECKPAM/DECKPNM - keypad modes (ignore for POC)
+	case '=', '>': // DECKPAM/DECKPNM - keypad modes (ignore)
+	case 'H': // HTS - set horizontal tab stop at current column
+		// Tab stop management would go here — ignore for now
+	case '\\': // ST - string terminator (handled in state machine)
+	}
+
+	// Character set designation: ESC ( X or ESC ) X
+	if vt.inter == '(' {
+		switch w {
+		case '0':
+			vt.node.charsetG0 = '0' // line drawing
+		case 'B':
+			vt.node.charsetG0 = 'B' // ASCII
+		}
+		return
+	}
+	if vt.inter == ')' {
+		switch w {
+		case '0':
+			vt.node.charsetG1 = '0'
+		case 'B':
+			vt.node.charsetG1 = 'B'
+		}
+		return
 	}
 }
 
@@ -464,9 +500,34 @@ func (vt *VTParser) doCSI(w rune) {
 					s.curX = 0
 				case 7: // DECAWM - auto-wrap
 					s.autoWrap = set
-				case 25: // DECTCEM - cursor visibility (ignore for POC)
-				case 1000, 1002, 1003, 1006: // Mouse tracking — consumed by magmux, not forwarded
-				case 1049: // Alt screen buffer
+				case 12: // Cursor blink (cosmetic, ignore)
+				case 25: // DECTCEM - cursor visibility (ignore for now)
+				case 47: // Alt screen (legacy)
+					if set {
+						if s.altScreen == nil {
+							s.altScreen = newScreen(s.rows, s.cols)
+						}
+						vt.node.screen = s.altScreen
+						vt.node.altMode = true
+					} else if s.altScreen != nil {
+						vt.node.screen = vt.node.primaryScreen
+						vt.node.altMode = false
+					}
+				case 1000, 1002, 1003, 1006: // Mouse tracking — consumed by magmux
+				case 1004: // Focus events
+					vt.node.focusEvents = set
+				case 1047: // Alt screen (variant 2)
+					if set {
+						if s.altScreen == nil {
+							s.altScreen = newScreen(s.rows, s.cols)
+						}
+						vt.node.screen = s.altScreen
+						vt.node.altMode = true
+					} else if s.altScreen != nil {
+						vt.node.screen = vt.node.primaryScreen
+						vt.node.altMode = false
+					}
+				case 1049: // Alt screen buffer + cursor save
 					vt.node.altMode = set
 					if set {
 						if s.altScreen == nil {
@@ -476,6 +537,8 @@ func (vt *VTParser) doCSI(w rune) {
 					} else if s.altScreen != nil {
 						vt.node.screen = vt.node.primaryScreen
 					}
+				case 2004: // Bracketed paste mode
+					vt.node.bracketPaste = set
 				}
 			}
 		}
@@ -608,8 +671,29 @@ func (vt *VTParser) doCSI(w rune) {
 			resp := fmt.Sprintf("\x1b[%d;%dR", s.curY+1, s.curX+1)
 			vt.node.writePTY([]byte(resp))
 		}
+	case 'Z': // CBT - cursor backward tabulation
+		n := vt.p1(0)
+		for i := 0; i < n; i++ {
+			s.curX = max(0, ((s.curX-1)/8)*8)
+		}
+		s.xenl = false
+	case '`': // HPA alt (same as CHA/G)
+		s.curX = clamp(vt.p1(0)-1, 0, s.cols-1)
+		s.xenl = false
+	case 'b': // REP - repeat last printed character
+		n := vt.p1(0)
+		for i := 0; i < n; i++ {
+			vt.doPrint(vt.node.lastChar)
+		}
 	case 'c': // DA - device attributes
-		vt.node.writePTY([]byte("\x1b[?1;2c"))
+		if vt.inter == '>' {
+			// DA2 - secondary device attributes (report as VT220)
+			vt.node.writePTY([]byte("\x1b[>1;10;0c"))
+		} else {
+			vt.node.writePTY([]byte("\x1b[?1;2c"))
+		}
+	case 'g': // TBC - tab clear
+		// Ignore for now (would need tab stop tracking)
 	case 'h': // SM - set mode
 		if vt.p0(0) == 4 {
 			s.insert = true
@@ -617,6 +701,19 @@ func (vt *VTParser) doCSI(w rune) {
 	case 'l': // RM - reset mode
 		if vt.p0(0) == 4 {
 			s.insert = false
+		}
+	case 'q': // DECSCUSR - set cursor shape (with space intermediate)
+		if vt.inter == ' ' {
+			vt.node.cursorShape = vt.p0(0)
+		}
+	case 't': // WINOPS - window operations
+		switch vt.p0(0) {
+		case 18: // Report terminal size in characters
+			resp := fmt.Sprintf("\x1b[8;%d;%dt", vt.node.h, vt.node.w)
+			vt.node.writePTY([]byte(resp))
+		case 14: // Report window size in pixels (fake it)
+			resp := fmt.Sprintf("\x1b[4;%d;%dt", vt.node.h*16, vt.node.w*8)
+			vt.node.writePTY([]byte(resp))
 		}
 	}
 }
@@ -643,7 +740,8 @@ func (vt *VTParser) doSGR() {
 			s.attr |= AttrDim
 		case p == 3:
 			s.attr |= AttrItalic
-		case p == 4: // underline — ignore like MTM
+		case p == 4:
+			s.attr |= AttrUnderline
 		case p == 5:
 			s.attr |= AttrBlink
 		case p == 7:
@@ -654,13 +752,24 @@ func (vt *VTParser) doSGR() {
 			s.attr &^= (AttrBold | AttrDim)
 		case p == 23:
 			s.attr &^= AttrItalic
-		case p == 24: // underline off
+		case p == 9:
+			s.attr |= AttrStrike
+		case p == 21: // double underline (treat as underline)
+			s.attr |= AttrUnderline
+		case p == 24:
+			s.attr &^= AttrUnderline
 		case p == 25:
 			s.attr &^= AttrBlink
 		case p == 27:
 			s.attr &^= AttrReverse
 		case p == 28:
 			s.attr &^= AttrInvis
+		case p == 29:
+			s.attr &^= AttrStrike
+		case p == 53:
+			s.attr |= AttrOverline
+		case p == 55:
+			s.attr &^= AttrOverline
 		case p >= 30 && p <= 37:
 			s.fg = Color{Index: int16(p - 30)}
 		case p == 38: // extended fg color
@@ -707,8 +816,33 @@ func (vt *VTParser) doSGR() {
 	}
 }
 
+// lineDrawingMap maps ASCII 0x60-0x7e to Unicode box-drawing when G0='0'
+var lineDrawingMap = map[rune]rune{
+	'j': '┘', 'k': '┐', 'l': '┌', 'm': '└', 'n': '┼',
+	'q': '─', 't': '├', 'u': '┤', 'v': '┴', 'w': '┬',
+	'x': '│', 'a': '▒', 'f': '°', 'g': '±', 'h': '░',
+	'o': '⎺', 'p': '⎻', 'r': '⎼', 's': '⎽', '0': '◆',
+	'`': '◆', '+': '→', ',': '←', '-': '↑', '.': '↓',
+	'~': '·', 'y': '≤', 'z': '≥', '{': 'π', '|': '≠',
+	'}': '£', 'i': '⎽', 'e': ' ',
+}
+
 func (vt *VTParser) doPrint(w rune) {
-	s := vt.node.screen
+	p := vt.node
+	s := p.screen
+
+	// Apply charset translation (line drawing)
+	cs := p.charsetG0
+	if p.useG1 {
+		cs = p.charsetG1
+	}
+	if cs == '0' {
+		if mapped, ok := lineDrawingMap[w]; ok {
+			w = mapped
+		}
+	}
+	p.lastChar = w
+
 	cw := runeWidth(w)
 	if cw <= 0 {
 		return
@@ -785,17 +919,26 @@ type Pane struct {
 	ptmx          *os.File // master side of PTY
 	cmd           *exec.Cmd
 	mu            sync.Mutex
-	dead    bool
-	altMode bool // child is in alternate screen (vim, htop, etc.)
+	dead          bool
+	altMode       bool // child is in alternate screen (vim, htop, etc.)
+	bracketPaste  bool // child requested bracketed paste mode (2004)
+	focusEvents   bool // child requested focus events (1004)
+	cursorShape   int  // DECSCUSR: 0=default, 1=block blink, 2=block, 3=underline blink, 4=underline, 5=bar blink, 6=bar
+	charsetG0     byte // 0='B' (ASCII), '0' (line drawing)
+	charsetG1     byte
+	useG1         bool // SO (shift out) active — use G1 instead of G0
+	lastChar      rune // last printed character (for REP command)
 }
 
 func newPane(y, x, h, w int, command string, args ...string) (*Pane, error) {
 	p := &Pane{
-		y:     y,
-		x:     x,
-		h:     h,
-		w:     w,
-		ratio: 0.5,
+		y:         y,
+		x:         x,
+		h:         h,
+		w:         w,
+		ratio:     0.5,
+		charsetG0: 'B', // ASCII
+		charsetG1: 'B',
 	}
 	p.screen = newScreen(h, w)
 	p.primaryScreen = p.screen
@@ -1046,6 +1189,15 @@ func (r *Renderer) setAttr(fg, bg Color, attr Attr) {
 	}
 	if attr&AttrInvis != 0 {
 		r.buf.WriteString(";8")
+	}
+	if attr&AttrUnderline != 0 {
+		r.buf.WriteString(";4")
+	}
+	if attr&AttrStrike != 0 {
+		r.buf.WriteString(";9")
+	}
+	if attr&AttrOverline != 0 {
+		r.buf.WriteString(";53")
 	}
 	r.writeColor(fg, false)
 	r.writeColor(bg, true)
