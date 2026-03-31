@@ -1009,7 +1009,7 @@ func (p *Pane) spawnPTY(command string, args ...string) error {
 		Setctty: true,
 	}
 	cmd.Env = append(os.Environ(),
-		"TERM=xterm-256color",
+		"TERM=screen-256color",
 		fmt.Sprintf("COLUMNS=%d", p.w),
 		fmt.Sprintf("LINES=%d", p.h),
 	)
