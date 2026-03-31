@@ -740,8 +740,7 @@ func (vt *VTParser) doSGR() {
 			s.attr |= AttrDim
 		case p == 3:
 			s.attr |= AttrItalic
-		case p == 4:
-			s.attr |= AttrUnderline
+		case p == 4: // underline — suppress like MTM (renders as visible lines in multiplexer)
 		case p == 5:
 			s.attr |= AttrBlink
 		case p == 7:
@@ -1210,8 +1209,8 @@ func (r *Renderer) setAttr(fg, bg Color, attr Attr) {
 func (r *Renderer) renderPane(p *Pane) {
 	if p.splitType != SplitNone {
 		r.renderPane(p.child1)
-		r.renderPane(p.child2)
 		r.renderBorder(p)
+		r.renderPane(p.child2)
 		return
 	}
 
@@ -1238,13 +1237,16 @@ func (r *Renderer) renderPane(p *Pane) {
 func (r *Renderer) renderBorder(p *Pane) {
 	r.setAttr(Color{Index: 8}, defaultColor, AttrDim) // gray dim border
 	if p.splitType == SplitHorizontal {
-		bx := p.x + int(float64(p.w)*p.ratio)
+		// Border at the exact column between child1 and child2
+		// child1 ends at p.x + child1.w, border is at that position
+		bx := p.child1.x + p.child1.w
 		for row := 0; row < p.h; row++ {
 			r.moveTo(p.y+row, bx)
 			r.buf.WriteString("│")
 		}
 	} else if p.splitType == SplitVertical {
-		by := p.y + int(float64(p.h)*p.ratio)
+		// Border at the exact row between child1 and child2
+		by := p.child1.y + p.child1.h
 		r.moveTo(by, p.x)
 		for col := 0; col < p.w; col++ {
 			r.buf.WriteString("─")
