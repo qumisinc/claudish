@@ -29,6 +29,9 @@ const (
 	commandKey      = 'g' // Ctrl-G prefix
 )
 
+// ── Debug logging ─────────────────────────────────────────────────────────────
+var dbgFile *os.File
+
 // ── Selection color config ────────────────────────────────────────────────────
 // Override with MAGMUX_SEL_FG / MAGMUX_SEL_BG env vars (256-color index)
 var (
@@ -487,6 +490,11 @@ func (vt *VTParser) doEscape(w rune) {
 func (vt *VTParser) doCSI(w rune) {
 	s := vt.node.screen
 
+	if dbgFile != nil {
+		fmt.Fprintf(dbgFile, "CSI inter=0x%02x narg=%d args=%v final='%c' curY=%d curX=%d\n", vt.inter, vt.narg, vt.args[:max(vt.narg, 1)], w, s.curY, s.curX)
+		dbgFile.Sync()
+	}
+
 	// Private mode sequences (CSI ? ...)
 	if vt.inter == '?' {
 		set := w == 'h'
@@ -551,7 +559,20 @@ func (vt *VTParser) doCSI(w rune) {
 		case 'c': // DA2
 			vt.node.writePTY([]byte("\x1b[>1;10;0c"))
 		case 'm', 'n': // MODSET/MODOFF — xterm key modification modes, ignore
+		case 'u': // Push keyboard enhancement (Kitty protocol), ignore
+		case 'q': // xterm query, ignore
 		}
+		return
+	}
+
+	// CSI < ... sequences (Kitty keyboard protocol pop, etc.)
+	if vt.inter == '<' {
+		// CSI < u = pop keyboard enhancement — ignore
+		return
+	}
+
+	// CSI = ... sequences (Kitty keyboard protocol set, etc.)
+	if vt.inter == '=' {
 		return
 	}
 
@@ -597,6 +618,9 @@ func (vt *VTParser) doCSI(w rune) {
 		s.curY = clamp(row, 0, s.rows-1)
 		s.curX = clamp(col, 0, s.cols-1)
 		s.xenl = false
+		if dbgFile != nil {
+			fmt.Fprintf(dbgFile, "CUP: row=%d col=%d (param %d;%d)\n", s.curY, s.curX, vt.p1(0), vt.p1(1))
+		}
 	case 'J': // ED - erase display
 		switch vt.p0(0) {
 		case 0: // from cursor to end
@@ -687,10 +711,13 @@ func (vt *VTParser) doCSI(w rune) {
 		vt.doSGR()
 	case 'n': // DSR - device status report
 		if vt.p0(0) == 6 { // CPR - cursor position report
-			// Respond with current cursor position.
-			// Must be accurate — apps like Claude Code use this to determine
-			// where to render input. Read under lock to avoid race.
-			resp := fmt.Sprintf("\x1b[%d;%dR", s.curY+1, s.curX+1)
+			cur := vt.node.screen // re-read in case screen changed
+			resp := fmt.Sprintf("\x1b[%d;%dR", cur.curY+1, cur.curX+1)
+			// Debug log DSR
+			if dbgFile != nil {
+				fmt.Fprintf(dbgFile, "DSR: curY=%d curX=%d altMode=%v rows=%d cols=%d\n",
+					cur.curY, cur.curX, vt.node.altMode, cur.rows, cur.cols)
+			}
 			vt.node.writePTY([]byte(resp))
 		} else if vt.p0(0) == 5 { // Device status - report OK
 			vt.node.writePTY([]byte("\x1b[0n"))
@@ -1387,6 +1414,11 @@ type Magmux struct {
 }
 
 func (m *Magmux) init() error {
+	// Debug log
+	if os.Getenv("MAGMUX_DEBUG") != "" {
+		dbgFile, _ = os.Create("/tmp/magmux-debug.log")
+	}
+
 	// Parse selection color config from env
 	if v := os.Getenv("MAGMUX_SEL_FG"); v != "" {
 		fmt.Sscanf(v, "%d", &selFg)
