@@ -2,6 +2,31 @@
 
 All notable changes to [Claudish](https://github.com/MadAppGang/claudish).
 
+## [6.5.0] - 2026-04-01
+
+### Bug Fixes
+
+- magmux set TERM=screen-256color (root cause of all VT issues)([`488cf7e`](https://github.com/MadAppGang/claudish/commit/488cf7e99a18321bdabb146b58e0f81ac39d5321))
+- magmux handle Kitty keyboard protocol CSI sequences([`b4b02ff`](https://github.com/MadAppGang/claudish/commit/b4b02ff56261ca01067451dfc12de184f783090c))
+- magmux filter CSI intermediate bytes to prevent SGR corruption([`ea6e723`](https://github.com/MadAppGang/claudish/commit/ea6e72339ed2a5a88ef123ba96998d5629c9c61a))
+- magmux suppress underline SGR + fix border rendering order([`a1b20b0`](https://github.com/MadAppGang/claudish/commit/a1b20b0f61a0a6638681fe41781784e6eb70e8c9))
+
+### Documentation
+
+- MTM-to-magmux migration guide for claudish developers([`c296671`](https://github.com/MadAppGang/claudish/commit/c2966716e423e4b38efc8728df908825952e00c4))
+- add magmux usage guide to claudish documentation([`6ea796d`](https://github.com/MadAppGang/claudish/commit/6ea796dba3f0c5faa31a2f51315e281ab605ce66))
+- update CHANGELOG.md for v6.4.6([`84674f5`](https://github.com/MadAppGang/claudish/commit/84674f5c8b6f05a92940531c300f3549091bc9a3))
+
+### New Features
+
+- v6.5.0 — Gemini Code Assist overhaul, auth commands, quota CLI, Codex OAuth([`f9b1c54`](https://github.com/MadAppGang/claudish/commit/f9b1c54682d16cf8684d3ec8ce4b4201cddef59d))
+- magmux VT parser — implement tmux-equivalent escape sequence coverage([`c8abea2`](https://github.com/MadAppGang/claudish/commit/c8abea2f2023119f62c7e10def176ffdd87d938f))
+- team grid mode — mtm-based multi-model visual display([`3da53f1`](https://github.com/MadAppGang/claudish/commit/3da53f196c90c2790d009af39ea1cf8573e9cc91))
+
+### Performance
+
+- magmux dirty-flag rendering — skip redraws when nothing changed([`7fb0eb3`](https://github.com/MadAppGang/claudish/commit/7fb0eb34e8d69c673c4e649beb5070e1b30e6fde))
+
 ## [6.4.6] - 2026-03-30
 
 ### Bug Fixes
