@@ -416,9 +416,10 @@ async function runCli() {
       cliConfig.interactive && (cliConfig.diagMode === "auto" || cliConfig.diagMode === "pty");
     const mtmRunner = needsMtm ? await tryCreateMtmRunner() : null;
 
-    // Set model name on the status bar
-    if (mtmRunner && explicitModel) {
-      mtmRunner.setModel(explicitModel);
+    // Set model name and port on the status bar
+    if (mtmRunner) {
+      if (explicitModel) mtmRunner.setModel(explicitModel);
+      mtmRunner.setPort(port);
     }
 
     // Route diagnostic output: mtm → tmux pane → log file (priority order)

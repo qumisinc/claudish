@@ -5,6 +5,7 @@ import {
   createWriteStream,
   existsSync,
   mkdirSync,
+  readFileSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -141,12 +142,30 @@ export class MtmDiagRunner {
       const parts = msg.split(":").slice(1).join(":").trim();
       if (parts) this.adapters = parts;
     }
+    // Track provider name from auth refresh messages
+    // e.g., "[GeminiCodeAssist] Auth refreshed, project: ..., tier: GeminiCA Pro"
+    if (msg.includes("Auth refreshed") && msg.includes("tier:")) {
+      const tierMatch = msg.match(/tier:\s*(.+)$/);
+      if (tierMatch) this.provider = tierMatch[1].trim();
+    }
+    // Track fallback provider from FallbackHandler
+    // e.g., "[Fallback] Gemini succeeded after 1 failed attempt(s)"
+    if (msg.includes("[Fallback]") && msg.includes("succeeded")) {
+      const fbMatch = msg.match(/\[Fallback\]\s+(\S+)\s+succeeded/);
+      if (fbMatch) this.provider = fbMatch[1];
+    }
+    // Track quota from logStderr messages
+    // e.g., "[GeminiCodeAssist] Rate limited (RATE_LIMIT_EXCEEDED), retrying in 10.0s"
+    if (msg.includes("Rate limited") && msg.includes("retrying")) {
+      this.lastError = msg.replace(/.*\]\s*/, "").substring(0, 60);
+    }
     this.refreshStatusBar();
   }
 
   /** Current status bar state */
   private modelName = "";
   private provider = "";
+  private port = "";
   private lastError = "";
   private errorCount = 0;
   private requestCount = 0;
@@ -154,6 +173,11 @@ export class MtmDiagRunner {
   private avgRoundtripMs = 0;
   private roundtripSamples: number[] = [];
   private adapters = ""; // translation layers: format + model + transport
+
+  /** Set the proxy port (for reading token file) */
+  setPort(port: number | string): void {
+    this.port = String(port);
+  }
 
   /**
    * Set the model name shown in the status bar.
@@ -175,6 +199,16 @@ export class MtmDiagRunner {
    * Render and write the ANSI-formatted status bar to the status file.
    */
   private refreshStatusBar(): void {
+    // Read quota from token file (best-effort)
+    let quotaRemaining: number | undefined;
+    try {
+      const tokPath = join(homedir(), ".claudish", `tokens-${this.port}.json`);
+      const tok = JSON.parse(readFileSync(tokPath, "utf-8"));
+      if (typeof tok.quota_remaining === "number") quotaRemaining = tok.quota_remaining;
+      // Also pick up provider name from token file if not set from logs
+      if (!this.provider && tok.provider_name) this.provider = tok.provider_name;
+    } catch { /* best-effort */ }
+
     const bar = renderStatusBar({
       model: this.modelName,
       provider: this.provider,
@@ -182,6 +216,7 @@ export class MtmDiagRunner {
       lastError: this.lastError,
       requestCount: this.requestCount,
       avgRoundtripMs: this.avgRoundtripMs,
+      quotaRemaining,
     });
     try {
       // Append new line — tail -f picks it up and shows the latest
@@ -296,6 +331,7 @@ interface StatusBarState {
   lastError: string;
   requestCount: number;
   avgRoundtripMs: number;
+  quotaRemaining?: number;
 }
 
 /**
@@ -305,18 +341,20 @@ interface StatusBarState {
  * mtm renders each segment as a colored pill using ncurses.
  */
 function renderStatusBar(state: StatusBarState): string {
-  const { model, provider, errorCount, lastError, requestCount, avgRoundtripMs } = state;
+  const { model, provider, errorCount, lastError, requestCount, avgRoundtripMs, quotaRemaining } = state;
 
   const parts: string[] = [];
 
   parts.push("M: claudish ");
   if (model) parts.push(`C: ${model} `);
-  if (provider) parts.push(`D: ${provider} `);
+  if (provider) parts.push(`W: ${provider} `);
 
-  // Request count + avg roundtrip
-  if (requestCount > 0) {
-    const rt = avgRoundtripMs > 0 ? ` ~${avgRoundtripMs}ms` : "";
-    parts.push(`D: ${requestCount} req${rt} `);
+  // Quota remaining (for Code Assist models)
+  if (typeof quotaRemaining === "number") {
+    const pct = Math.round(quotaRemaining * 100);
+    // Color: green >50%, yellow 20-50%, red <20%
+    const color = pct > 50 ? "G" : pct > 20 ? "Y" : "R";
+    parts.push(`${color}: ${pct}% quota `);
   }
 
   // Status
