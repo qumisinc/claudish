@@ -503,7 +503,11 @@ describe("Model Adapter Quirks", () => {
 
     // MiniMax's Anthropic-compatible endpoint supports `thinking` natively.
     // prepareRequest should NOT convert it to reasoning_split.
-    const request: any = { model: "minimax-m2.5", messages: [], thinking: { budget_tokens: 10000 } };
+    const request: any = {
+      model: "minimax-m2.5",
+      messages: [],
+      thinking: { budget_tokens: 10000 },
+    };
     const original = { thinking: { budget_tokens: 10000 } };
 
     adapter.prepareRequest(request, original);

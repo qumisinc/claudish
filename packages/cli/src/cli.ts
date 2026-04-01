@@ -16,7 +16,11 @@ import { homedir } from "node:os";
 import { fuzzyScore } from "./utils.js";
 import { getModelMapping, loadConfig } from "./profile-config.js";
 import { parseModelSpec } from "./providers/model-parser.js";
-import { getFallbackChain, warmZenModelCache, warmZenGoModelCache } from "./providers/auto-route.js";
+import {
+  getFallbackChain,
+  warmZenModelCache,
+  warmZenGoModelCache,
+} from "./providers/auto-route.js";
 import {
   loadRoutingRules,
   matchRoutingRule,
@@ -44,7 +48,7 @@ export {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "6.4.6"; // Fallback version for compiled binaries
+let VERSION = "6.5.0"; // Fallback version for compiled binaries
 try {
   const packageJson = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   VERSION = packageJson.version;
@@ -147,7 +151,10 @@ export async function parseArgs(args: string[]): Promise<ClaudishConfig> {
   // Load diagMode from settings file (lowest priority — env/CLI override)
   try {
     const fileConfig = loadConfig();
-    if (fileConfig.diagMode && ["auto", "pty", "tmux", "logfile", "off"].includes(fileConfig.diagMode)) {
+    if (
+      fileConfig.diagMode &&
+      ["auto", "pty", "tmux", "logfile", "off"].includes(fileConfig.diagMode)
+    ) {
       config.diagMode = fileConfig.diagMode;
     }
   } catch {}
@@ -1765,10 +1772,9 @@ UPDATE:
   claudish update          Check for updates and install latest version
 
 AUTHENTICATION:
-  --gemini-login           Login to Gemini Code Assist via OAuth (for go@ prefix)
-  --gemini-logout          Clear Gemini OAuth credentials
-  --kimi-login             Login to Kimi/Moonshot AI via OAuth (for kc@ prefix)
-  --kimi-logout            Clear Kimi OAuth credentials
+  claudish login [provider]   Login to an OAuth provider (interactive if no provider given)
+  claudish logout [provider]  Clear OAuth credentials (interactive if no provider given)
+                              Providers: gemini, kimi
 
 MODEL MAPPING (per-role override):
   --model-opus <model>     Model for Opus role (planning, complex tasks)

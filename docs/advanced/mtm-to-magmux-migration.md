@@ -1,7 +1,8 @@
 # Migrating from MTM to magmux
 
-**Version**: v6.5.0 (planned)
-**Last updated**: 2026-03-28
+**Version**: v6.5.0
+**Last updated**: 2026-04-01
+**Status**: Steps 1-3 complete. magmux v0.3.0 supports `-g`, `-S`, socket IPC. `team-grid.ts` prefers magmux over MTM.
 **Audience**: Claudish developers wiring magmux into team-grid
 
 ---
@@ -309,14 +310,15 @@ MTM (C) is supported as a fallback but no longer actively maintained.
 
 ## CLI flag compatibility
 
-| Flag | MTM | magmux (current) | magmux (after migration) |
-|------|-----|-------------------|--------------------------|
-| `-g FILE` | Grid file | Not yet | Required |
-| `-S FILE` | Status bar file | Not yet | Required |
-| `-e CMD` | Fork command | `-e CMD` | Done |
-| `-t TERM` | Terminal type | Internal `screen-256color` | Not needed |
-| `-c KEY` | Command key | Not in magmux | Low priority |
-| `-L FILE` | Diagnostic log | `MAGMUX_DEBUG` env | Compatible |
+| Flag | MTM | magmux v0.3.0 |
+|------|-----|---------------|
+| `-g FILE` | Grid file | Done |
+| `-S FILE` | Status bar file | Done |
+| `-e CMD` | Fork command | Done |
+| `-t TERM` | Terminal type | Not needed (internal `screen-256color`) |
+| `-c KEY` | Command key | Not in magmux (low priority) |
+| `-L FILE` | Diagnostic log | `MAGMUX_DEBUG` env |
+| Socket IPC | N/A | `/tmp/magmux-{pid}.sock` (new, beyond MTM) |
 
 ---
 

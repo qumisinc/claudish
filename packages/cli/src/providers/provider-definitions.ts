@@ -161,6 +161,28 @@ export const BUILTIN_PROVIDERS: ProviderDefinition[] = [
     description: "Direct OpenAI API (oai@)",
   },
 
+  // ── OpenAI Codex (Responses API — ChatGPT Plus/Pro subscription) ────
+  {
+    name: "openai-codex",
+    displayName: "OpenAI Codex",
+    transport: "openai",
+    tokenStrategy: "delta-aware",
+    baseUrl: "https://api.openai.com",
+    baseUrlEnvVars: ["OPENAI_CODEX_BASE_URL"],
+    apiPath: "/v1/responses",
+    apiKeyEnvVar: "OPENAI_CODEX_API_KEY",
+    apiKeyAliases: ["OPENAI_API_KEY"],
+    apiKeyDescription: "OpenAI Codex API Key (ChatGPT Plus/Pro subscription)",
+    apiKeyUrl: "https://platform.openai.com/api-keys",
+    oauthFallback: "codex-oauth.json",
+    shortcuts: ["cx", "codex"],
+    shortestPrefix: "cx",
+    legacyPrefixes: [{ prefix: "cx/", stripPrefix: true }],
+    nativeModelPatterns: [{ pattern: /codex$/i }],
+    isDirectApi: true,
+    description: "OpenAI Codex (cx@, codex@)",
+  },
+
   // ── OpenRouter ─────────────────────────────────────────────────────
   {
     name: "openrouter",
@@ -197,10 +219,7 @@ export const BUILTIN_PROVIDERS: ProviderDefinition[] = [
     shortcuts: ["xai", "grok"],
     shortestPrefix: "xai",
     legacyPrefixes: [{ prefix: "xai/", stripPrefix: true }],
-    nativeModelPatterns: [
-      { pattern: /^x-ai\//i },
-      { pattern: /^grok-/i },
-    ],
+    nativeModelPatterns: [{ pattern: /^x-ai\//i }, { pattern: /^grok-/i }],
     isDirectApi: true,
   },
 
@@ -259,8 +278,7 @@ export const BUILTIN_PROVIDERS: ProviderDefinition[] = [
     apiPath: "/messages",
     apiKeyEnvVar: "KIMI_CODING_API_KEY",
     apiKeyDescription: "Kimi Coding API Key",
-    apiKeyUrl:
-      "https://kimi.com/code (get key from membership page, or run: claudish --kimi-login)",
+    apiKeyUrl: "https://kimi.com/code (get key from membership page, or run: claudish login kimi)",
     oauthFallback: "kimi-oauth.json",
     shortcuts: ["kc"],
     shortestPrefix: "kc",

@@ -72,14 +72,7 @@ export class SessionManager {
     }
 
     // Build spawn args — mirrors team-orchestrator pattern
-    const args = [
-      "--model",
-      opts.model,
-      "-y",
-      "--stdin",
-      "--quiet",
-      ...(opts.claudishFlags ?? []),
-    ];
+    const args = ["--model", opts.model, "-y", "--stdin", "--quiet", ...(opts.claudishFlags ?? [])];
 
     const proc = spawn("claudish", args, {
       cwd: opts.cwd ?? process.cwd(),
@@ -177,11 +170,7 @@ export class SessionManager {
       }
 
       // Write meta.json
-      writeFileSync(
-        join(sessionDir, "meta.json"),
-        JSON.stringify(entry.info, null, 2),
-        "utf-8"
-      );
+      writeFileSync(join(sessionDir, "meta.json"), JSON.stringify(entry.info, null, 2), "utf-8");
 
       this.cleanupSigint();
     });

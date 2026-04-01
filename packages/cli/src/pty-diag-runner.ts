@@ -1,6 +1,13 @@
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
-import { appendFileSync, createWriteStream, existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import type { WriteStream } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -70,10 +77,14 @@ export class MtmDiagRunner {
     // -S statusPath : render status bar on the last row (not a pane, just 1 ncurses line)
     // -L logPath    : diagnostic log file for expanded view (click status bar or Ctrl-G d)
     // stdio: inherit — mtm gets direct terminal access
-    this.mtmProc = spawn(mtmBin, ["-t", "xterm-256color", "-e", claudeCmd, "-S", this.statusPath, "-L", this.logPath], {
-      stdio: "inherit",
-      env: mergedEnv,
-    });
+    this.mtmProc = spawn(
+      mtmBin,
+      ["-t", "xterm-256color", "-e", claudeCmd, "-S", this.statusPath, "-L", this.logPath],
+      {
+        stdio: "inherit",
+        env: mergedEnv,
+      }
+    );
 
     const exitCode = await new Promise<number>((resolve) => {
       this.mtmProc!.on("exit", (code) => {
@@ -81,7 +92,9 @@ export class MtmDiagRunner {
       });
       this.mtmProc!.on("error", (err) => {
         if (this.logStream) {
-          try { this.logStream.write(`[mtm] spawn error: ${err.message}\n`); } catch {}
+          try {
+            this.logStream.write(`[mtm] spawn error: ${err.message}\n`);
+          } catch {}
         }
         resolve(1);
       });
@@ -197,8 +210,12 @@ export class MtmDiagRunner {
       }
       this.logStream = null;
     }
-    try { unlinkSync(this.logPath); } catch {}
-    try { unlinkSync(this.statusPath); } catch {}
+    try {
+      unlinkSync(this.logPath);
+    } catch {}
+    try {
+      unlinkSync(this.statusPath);
+    } catch {}
     if (this.mtmProc) {
       try {
         this.mtmProc.kill();
@@ -337,7 +354,11 @@ function parseLogMessage(msg: string): { isError: boolean; short: string; provid
     }
     // "Gemini Code Assist failed (HTTP 401), trying next provider..."
     const failMatch = msg.match(/\]\s*(.+?)\s+failed/);
-    return { isError: false, short: failMatch ? `${failMatch[1]} failed, retrying` : "fallback", provider };
+    return {
+      isError: false,
+      short: failMatch ? `${failMatch[1]} failed, retrying` : "fallback",
+      provider,
+    };
   }
 
   // HTTP status errors — extract the human-readable part

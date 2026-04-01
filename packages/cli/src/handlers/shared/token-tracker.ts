@@ -30,10 +30,29 @@ export class TokenTracker {
   private sessionTotalCost = 0;
   private sessionInputTokens = 0;
   private sessionOutputTokens = 0;
+  /** Override model name in status line (e.g., after capacity fallback) */
+  private modelNameOverride: string | undefined;
+  /** Quota remaining fraction (0-1) for the current model */
+  private quotaRemaining: number | undefined;
 
   constructor(port: number, config: TokenTrackerConfig) {
     this.port = port;
     this.config = config;
+  }
+
+  /** Set an override model name (shown in status line instead of original) */
+  setActiveModelName(name: string): void {
+    this.modelNameOverride = name;
+  }
+
+  /** Update provider display name (e.g., after OAuth resolves the tier) */
+  setProviderDisplayName(name: string): void {
+    this.config.providerDisplayName = name;
+  }
+
+  /** Set quota remaining fraction (0-1) for the current model */
+  setQuotaRemaining(fraction: number): void {
+    this.quotaRemaining = fraction;
   }
 
   /**
@@ -209,6 +228,14 @@ export class TokenTracker {
         is_free: isFreeModel,
         is_estimated: isEstimate || false,
       };
+      // When a fallback model is active, include it so the status line shows the actual model
+      if (this.modelNameOverride) {
+        data.model_name = this.modelNameOverride;
+      }
+      // Include quota remaining if available (e.g., from Gemini Code Assist)
+      if (this.quotaRemaining !== undefined) {
+        data.quota_remaining = this.quotaRemaining;
+      }
 
       const claudishDir = join(homedir(), ".claudish");
       mkdirSync(claudishDir, { recursive: true });

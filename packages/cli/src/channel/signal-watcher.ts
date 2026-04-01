@@ -33,7 +33,7 @@ export class SignalWatcher {
   constructor(
     private sessionId: string,
     private callback: SignalCallback,
-    private quietPeriodMs = QUIET_PERIOD_MS,
+    private quietPeriodMs = QUIET_PERIOD_MS
   ) {}
 
   /** Current state. */
@@ -125,7 +125,9 @@ export class SignalWatcher {
       const match = text.match(pattern);
       if (match) {
         // Extract tool name from match
-        const nameMatch = match[0].match(/\b(Read|Write|Edit|Bash|Glob|Grep|Agent|Skill|WebSearch|WebFetch|Tool:\s*\w+)\b/);
+        const nameMatch = match[0].match(
+          /\b(Read|Write|Edit|Bash|Glob|Grep|Agent|Skill|WebSearch|WebFetch|Tool:\s*\w+)\b/
+        );
         return nameMatch ? nameMatch[1].replace("Tool: ", "") : "unknown";
       }
     }

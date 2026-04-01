@@ -18,8 +18,7 @@ import { GrokModelDialect } from "./adapters/grok-model-dialect.js";
 import { DialectManager } from "./adapters/dialect-manager.js";
 import { AnthropicAPIFormat } from "./adapters/anthropic-api-format.js";
 
-const MINIMAX_API_KEY =
-  process.env.MINIMAX_CODING_API_KEY || process.env.MINIMAX_API_KEY;
+const MINIMAX_API_KEY = process.env.MINIMAX_CODING_API_KEY || process.env.MINIMAX_API_KEY;
 const SKIP_REAL_API = !MINIMAX_API_KEY;
 
 const MINIMAX_API_BASE = "https://api.minimax.io/anthropic/v1/messages";
@@ -364,10 +363,7 @@ describe.skipIf(SKIP_REAL_API)("Group 3: Real API — MiniMax E2E", () => {
 // ─── Group 4: Full Pipeline Integration (no API calls) ───────────────────────
 
 describe("Group 4: AnthropicAPIFormat + MiniMaxModelDialect pipeline", () => {
-  function buildMinimaxPayload(
-    claudeRequest: any,
-    modelId = "MiniMax-M2.7"
-  ): any {
+  function buildMinimaxPayload(claudeRequest: any, modelId = "MiniMax-M2.7"): any {
     const format = new AnthropicAPIFormat(modelId, "minimax");
     const dialect = new MiniMaxModelDialect(modelId);
 

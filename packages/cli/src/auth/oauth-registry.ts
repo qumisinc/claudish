@@ -13,7 +13,7 @@ interface OAuthProviderDescriptor {
  * Providers with working OAuth device authorization flows.
  *
  * Providers NOT listed here use API keys only (no public OAuth device-auth endpoint):
- *   - openai        (OPENAI_API_KEY) - OpenAI does not offer public OAuth device auth
+ *   - openai        (OPENAI_API_KEY) - OpenAI direct API uses API keys only
  *   - minimax       (MINIMAX_API_KEY) - API key only
  *   - minimax-coding (MINIMAX_CODING_API_KEY) - API key only
  *   - glm           (ZHIPU_API_KEY) - API key only
@@ -29,7 +29,7 @@ interface OAuthProviderDescriptor {
  */
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderDescriptor> = {
   // Kimi / Moonshot AI - Device Authorization Grant (RFC 8628)
-  // Login via: claudish --kimi-login
+  // Login via: claudish login kimi
   "kimi-coding": {
     credentialFile: "kimi-oauth.json",
     validationMode: "check-expiry",
@@ -42,8 +42,16 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderDescriptor> = {
     expiresAtField: "expires_at",
     expiryBufferMs: 5 * 60 * 1000,
   },
+  // OpenAI Codex - OAuth2 PKCE flow (browser-based, ChatGPT Plus/Pro subscription)
+  // Login via: claudish login codex
+  "openai-codex": {
+    credentialFile: "codex-oauth.json",
+    validationMode: "check-expiry",
+    expiresAtField: "expires_at",
+    expiryBufferMs: 5 * 60 * 1000,
+  },
   // Google Gemini Code Assist - OAuth2 PKCE flow (browser-based)
-  // Login via: claudish --gemini-login
+  // Login via: claudish login gemini
   google: {
     credentialFile: "gemini-oauth.json",
     validationMode: "check-expiry",

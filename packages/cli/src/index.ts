@@ -59,12 +59,6 @@ function handlePromptExit(err: unknown): void {
 // Check for auth and profile management commands
 const args = process.argv.slice(2);
 
-// Auth commands (--gemini-login, --gemini-logout, --kimi-login, --kimi-logout)
-const isGeminiLogin = args.includes("--gemini-login");
-const isGeminiLogout = args.includes("--gemini-logout");
-const isKimiLogin = args.includes("--kimi-login");
-const isKimiLogout = args.includes("--kimi-logout");
-
 // Check for subcommands (can appear anywhere in args due to aliases like `claudish -y`)
 const isUpdateCommand = args.includes("update");
 const isInitCommand = args[0] === "init" || args.includes("init");
@@ -81,75 +75,48 @@ const isStatsCommand = firstPositional === "stats";
 const isConfigCommand = firstPositional === "config";
 // Check for team orchestrator subcommand
 const isTeamCommand = firstPositional === "team";
+// Auth subcommands: claudish login [provider], claudish logout [provider]
+const isLoginCommand = firstPositional === "login";
+const isLogoutCommand = firstPositional === "logout";
+// Quota subcommand: claudish quota [provider]
+const isQuotaCommand = firstPositional === "quota" || firstPositional === "usage";
+// Legacy auth flags (deprecated, redirect to new subcommands)
+const isLegacyGeminiLogin = args.includes("--gemini-login");
+const isLegacyGeminiLogout = args.includes("--gemini-logout");
+const isLegacyKimiLogin = args.includes("--kimi-login");
+const isLegacyKimiLogout = args.includes("--kimi-logout");
 
 if (isMcpMode) {
   // MCP server mode - dynamic import to keep CLI fast
   import("./mcp-server.js").then((mcp) => mcp.startMcpServer());
-} else if (isGeminiLogin) {
-  // Gemini OAuth login
-  import("./auth/gemini-oauth.js").then(async ({ GeminiOAuth }) => {
-    try {
-      const oauth = GeminiOAuth.getInstance();
-      await oauth.login();
-      console.log("\n✅ Gemini OAuth login successful!");
-      console.log(
-        "You can now use Gemini Code Assist with: claudish --model go@gemini-3-pro-preview"
-      );
-      process.exit(0);
-    } catch (error) {
-      console.error(
-        "\n❌ Gemini OAuth login failed:",
-        error instanceof Error ? error.message : error
-      );
-      process.exit(1);
-    }
-  });
-} else if (isGeminiLogout) {
-  // Gemini OAuth logout
-  import("./auth/gemini-oauth.js").then(async ({ GeminiOAuth }) => {
-    try {
-      const oauth = GeminiOAuth.getInstance();
-      await oauth.logout();
-      console.log("✅ Gemini OAuth credentials cleared.");
-      process.exit(0);
-    } catch (error) {
-      console.error(
-        "❌ Gemini OAuth logout failed:",
-        error instanceof Error ? error.message : error
-      );
-      process.exit(1);
-    }
-  });
-} else if (isKimiLogin) {
-  // Kimi OAuth login (Device Authorization Grant)
-  import("./auth/kimi-oauth.js").then(async ({ KimiOAuth }) => {
-    try {
-      const oauth = KimiOAuth.getInstance();
-      await oauth.login();
-      console.log("\n✅ Kimi OAuth login successful!");
-      console.log("You can now use Kimi Coding with: claudish --model kc@kimi-for-coding");
-      process.exit(0);
-    } catch (error) {
-      console.error(
-        "\n❌ Kimi OAuth login failed:",
-        error instanceof Error ? error.message : error
-      );
-      process.exit(1);
-    }
-  });
-} else if (isKimiLogout) {
-  // Kimi OAuth logout
-  import("./auth/kimi-oauth.js").then(async ({ KimiOAuth }) => {
-    try {
-      const oauth = KimiOAuth.getInstance();
-      await oauth.logout();
-      console.log("✅ Kimi OAuth credentials cleared.");
-      process.exit(0);
-    } catch (error) {
-      console.error("❌ Kimi OAuth logout failed:", error instanceof Error ? error.message : error);
-      process.exit(1);
-    }
-  });
+} else if (isLoginCommand) {
+  // Auth login subcommand: claudish login [provider]
+  const loginProviderArg = args.find((a, i) => i > args.indexOf("login") && !a.startsWith("-"));
+  import("./auth/auth-commands.js").then((m) =>
+    m.loginCommand(loginProviderArg).catch(handlePromptExit)
+  );
+} else if (isLogoutCommand) {
+  // Auth logout subcommand: claudish logout [provider]
+  const logoutProviderArg = args.find((a, i) => i > args.indexOf("logout") && !a.startsWith("-"));
+  import("./auth/auth-commands.js").then((m) =>
+    m.logoutCommand(logoutProviderArg).catch(handlePromptExit)
+  );
+} else if (isLegacyGeminiLogin || isLegacyKimiLogin) {
+  // Deprecated --*-login flags — redirect to new subcommands
+  const provider = isLegacyGeminiLogin ? "gemini" : "kimi";
+  console.log(`Note: --${provider}-login is deprecated. Use: claudish login ${provider}`);
+  import("./auth/auth-commands.js").then((m) => m.loginCommand(provider).catch(handlePromptExit));
+} else if (isLegacyGeminiLogout || isLegacyKimiLogout) {
+  // Deprecated --*-logout flags — redirect to new subcommands
+  const provider = isLegacyGeminiLogout ? "gemini" : "kimi";
+  console.log(`Note: --${provider}-logout is deprecated. Use: claudish logout ${provider}`);
+  import("./auth/auth-commands.js").then((m) => m.logoutCommand(provider).catch(handlePromptExit));
+} else if (isQuotaCommand) {
+  // Quota/usage subcommand: claudish quota [provider]
+  const quotaProviderArg = args.find(
+    (a, i) => i > args.indexOf(firstPositional!) && !a.startsWith("-")
+  );
+  import("./auth/quota-command.js").then((m) => m.quotaCommand(quotaProviderArg));
 } else if (isUpdateCommand) {
   // Self-update command (checked early to work with aliases like `claudish -y update`)
   import("./update-command.js").then((m) => m.updateCommand());
@@ -320,7 +287,9 @@ async function runCli() {
       cliConfig.modelHaiku ||
       cliConfig.modelSubagent;
     if (cliConfig.interactive && !cliConfig.monitor && !cliConfig.model && !hasProfileTiers) {
-      cliConfig.model = await selectModel({ freeOnly: cliConfig.freeOnly });
+      cliConfig.model = (await selectModel({ freeOnly: cliConfig.freeOnly }).catch(
+        handlePromptExit
+      )) as string;
       console.log(""); // Empty line after selection
     }
 

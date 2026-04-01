@@ -94,9 +94,7 @@ async function testAnthropic(
   const url = `${baseUrl}/anthropic/v1/messages`;
   const signal = AbortSignal.timeout(TIMEOUT_MS);
   const authHeader =
-    authScheme === "bearer"
-      ? { Authorization: `Bearer ${apiKey}` }
-      : { "x-api-key": apiKey };
+    authScheme === "bearer" ? { Authorization: `Bearer ${apiKey}` } : { "x-api-key": apiKey };
 
   try {
     const resp = await fetch(url, {
@@ -164,10 +162,7 @@ async function testOllamaCloud(baseUrl: string, apiKey: string): Promise<TestRes
  * @param apiKey        - The resolved API key to test
  * @returns             - Human-readable result string
  */
-export async function testProviderKey(
-  providerName: string,
-  apiKey: string
-): Promise<TestResult> {
+export async function testProviderKey(providerName: string, apiKey: string): Promise<TestResult> {
   // Look up the full provider definition for transport/URL details
   const allDefs = getAllProviders();
   // providers.ts remaps "google" → "gemini" for display, so normalise back

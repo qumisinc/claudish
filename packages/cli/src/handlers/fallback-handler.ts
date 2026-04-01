@@ -65,6 +65,10 @@ export class FallbackHandler implements ModelHandler {
           this.lastSuccessIndex = idx;
           if (errors.length > 0) {
             logStderr(`[Fallback] ${name} succeeded after ${errors.length} failed attempt(s)`);
+            // Update status bar to show the actual provider used
+            if (handler instanceof ComposedHandler) {
+              handler.getTokenTracker()?.setProviderDisplayName(name);
+            }
           }
           return response;
         }

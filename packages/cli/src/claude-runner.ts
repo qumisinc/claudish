@@ -52,6 +52,7 @@ const path = require('path');
 const CYAN = "\\x1b[96m";
 const YELLOW = "\\x1b[93m";
 const GREEN = "\\x1b[92m";
+const RED = "\\x1b[91m";
 const MAGENTA = "\\x1b[95m";
 const DIM = "\\x1b[2m";
 const RESET = "\\x1b[0m";
@@ -87,6 +88,7 @@ process.stdin.on('end', () => {
       isEstimated = tokens.is_estimated || false;
       providerName = tokens.provider_name || '';
       if (tokens.model_name) model = tokens.model_name;
+      var quotaRemaining = tokens.quota_remaining;
     } catch (e) {
       try {
         const json = JSON.parse(input);
@@ -117,7 +119,14 @@ process.stdin.on('end', () => {
     } else {
       ctxDisplay = ctx + '%';
     }
-    console.log(\`\${CYAN}\${BOLD}\${dir}\${RESET} \${DIM}•\${RESET} \${YELLOW}\${modelDisplay}\${RESET} \${DIM}•\${RESET} \${GREEN}\${costDisplay}\${RESET} \${DIM}•\${RESET} \${MAGENTA}\${ctxDisplay}\${RESET}\`);
+    let quotaDisplay = '';
+    if (typeof quotaRemaining === 'number') {
+      const usedPct = ((1 - quotaRemaining) * 100).toFixed(0);
+      const remainPct = (quotaRemaining * 100).toFixed(0);
+      const qColor = quotaRemaining > 0.5 ? GREEN : quotaRemaining > 0.2 ? YELLOW : RED;
+      quotaDisplay = ' ' + DIM + '•' + RESET + ' ' + qColor + remainPct + '% quota' + RESET;
+    }
+    console.log(\`\${CYAN}\${BOLD}\${dir}\${RESET} \${DIM}•\${RESET} \${YELLOW}\${modelDisplay}\${RESET} \${DIM}•\${RESET} \${GREEN}\${costDisplay}\${RESET} \${DIM}•\${RESET} \${MAGENTA}\${ctxDisplay}\${RESET}\${quotaDisplay}\`);
   } catch (e) {
     console.log('claudish');
   }

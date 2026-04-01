@@ -24,6 +24,7 @@ import { GeminiProviderTransport } from "./transport/gemini-apikey.js";
 import { GeminiCodeAssistProviderTransport } from "./transport/gemini-codeassist.js";
 import { GeminiAPIFormat } from "../adapters/gemini-api-format.js";
 import { OpenAIProviderTransport } from "./transport/openai.js";
+import { OpenAICodexTransport } from "./transport/openai-codex.js";
 import { OpenAIAPIFormat } from "../adapters/openai-api-format.js";
 import { AnthropicProviderTransport } from "./transport/anthropic-compat.js";
 import { AnthropicAPIFormat } from "../adapters/anthropic-api-format.js";
@@ -121,6 +122,23 @@ const openaiProfile: ProviderProfile = {
       ...ctx.sharedOpts,
     });
     log(`[Proxy] Created OpenAI handler (composed): ${ctx.modelName}`);
+    return handler;
+  },
+};
+
+/** OpenAI Codex — uses the Responses API (/v1/responses) with CodexAPIFormat.
+ *  Uses OpenAICodexTransport which checks for OAuth credentials first (ChatGPT subscription),
+ *  falling back to API key (OPENAI_CODEX_API_KEY). */
+const openaiCodexProfile: ProviderProfile = {
+  createHandler(ctx) {
+    const transport = new OpenAICodexTransport(ctx.provider, ctx.modelName, ctx.apiKey);
+    const adapter = new CodexAPIFormat(ctx.modelName);
+    const handler = new ComposedHandler(transport, ctx.targetModel, ctx.modelName, ctx.port, {
+      adapter,
+      tokenStrategy: "delta-aware",
+      ...ctx.sharedOpts,
+    });
+    log(`[Proxy] Created OpenAI Codex handler (composed): ${ctx.modelName}`);
     return handler;
   },
 };
@@ -333,6 +351,7 @@ export const PROVIDER_PROFILES: Record<string, ProviderProfile> = {
   gemini: geminiProfile,
   "gemini-codeassist": geminiCodeAssistProfile,
   openai: openaiProfile,
+  "openai-codex": openaiCodexProfile,
   minimax: anthropicCompatProfile,
   "minimax-coding": anthropicCompatProfile,
   kimi: anthropicCompatProfile,

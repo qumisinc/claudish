@@ -37,6 +37,7 @@ claudish --model ollama@llama3.2:3 "task"  # 3 concurrent requests
 ### Provider Shortcuts
 - `g@`, `google@` → Google Gemini
 - `oai@` → OpenAI Direct
+- `cx@`, `codex@` → OpenAI Codex (Responses API)
 - `or@`, `openrouter@` → OpenRouter
 - `mm@`, `mmax@` → MiniMax
 - `mmc@` → MiniMax Coding Plan

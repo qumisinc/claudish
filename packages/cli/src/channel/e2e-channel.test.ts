@@ -45,7 +45,9 @@ describe("Group 1: MCP Protocol — channel capability", () => {
   }, 15000);
 
   afterAll(async () => {
-    try { await transport.close(); } catch {}
+    try {
+      await transport.close();
+    } catch {}
   });
 
   test("declares experimental claude/channel capability", () => {
@@ -64,10 +66,17 @@ describe("Group 1: MCP Protocol — channel capability", () => {
     const result = await client.listTools();
     const names = result.tools.map((t) => t.name).sort();
     expect(names).toEqual([
-      "cancel_session", "compare_models", "create_session",
-      "get_output", "list_models", "list_sessions",
-      "report_error", "run_prompt", "search_models",
-      "send_input", "team",
+      "cancel_session",
+      "compare_models",
+      "create_session",
+      "get_output",
+      "list_models",
+      "list_sessions",
+      "report_error",
+      "run_prompt",
+      "search_models",
+      "send_input",
+      "team",
     ]);
   });
 
@@ -79,13 +88,19 @@ describe("Group 1: MCP Protocol — channel capability", () => {
   });
 
   test("list_sessions returns empty initially", async () => {
-    const result = await client.callTool({ name: "list_sessions", arguments: { include_completed: true } });
+    const result = await client.callTool({
+      name: "list_sessions",
+      arguments: { include_completed: true },
+    });
     const parsed = JSON.parse((result.content as any)[0].text);
     expect(parsed.sessions).toEqual([]);
   });
 
   test("send_input returns false for non-existent session", async () => {
-    const result = await client.callTool({ name: "send_input", arguments: { session_id: "bad", text: "hi" } });
+    const result = await client.callTool({
+      name: "send_input",
+      arguments: { session_id: "bad", text: "hi" },
+    });
     const parsed = JSON.parse((result.content as any)[0].text);
     expect(parsed.success).toBe(false);
   });
@@ -96,7 +111,10 @@ describe("Group 1: MCP Protocol — channel capability", () => {
   });
 
   test("cancel_session returns false for non-existent session", async () => {
-    const result = await client.callTool({ name: "cancel_session", arguments: { session_id: "bad" } });
+    const result = await client.callTool({
+      name: "cancel_session",
+      arguments: { session_id: "bad" },
+    });
     const parsed = JSON.parse((result.content as any)[0].text);
     expect(parsed.success).toBe(false);
   });
@@ -109,54 +127,65 @@ describe("Group 1: MCP Protocol — channel capability", () => {
   // Live session test via SDK client
   const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
 
-  test.skipIf(!hasOpenRouterKey)("create_session → poll → get_output lifecycle", async () => {
-    const notifications: any[] = [];
-    client.fallbackNotificationHandler = async (n: any) => {
-      if (n.method === "notifications/claude/channel") notifications.push(n.params);
-    };
+  test.skipIf(!hasOpenRouterKey)(
+    "create_session → poll → get_output lifecycle",
+    async () => {
+      const notifications: any[] = [];
+      client.fallbackNotificationHandler = async (n: any) => {
+        if (n.method === "notifications/claude/channel") notifications.push(n.params);
+      };
 
-    const res = await client.callTool({
-      name: "create_session",
-      arguments: { model: "x-ai/grok-code-fast-1", prompt: "Say exactly: hello world", timeout_seconds: 30 },
-    });
-    const { session_id: sid } = JSON.parse((res.content as any)[0].text);
-    expect(sid).toBeDefined();
+      const res = await client.callTool({
+        name: "create_session",
+        arguments: {
+          model: "x-ai/grok-code-fast-1",
+          prompt: "Say exactly: hello world",
+          timeout_seconds: 30,
+        },
+      });
+      const { session_id: sid } = JSON.parse((res.content as any)[0].text);
+      expect(sid).toBeDefined();
 
-    // Poll until done
-    for (let i = 0; i < 60; i++) {
-      await new Promise((r) => setTimeout(r, 1000));
-      const list = await client.callTool({ name: "list_sessions", arguments: { include_completed: true } });
-      const sessions = JSON.parse((list.content as any)[0].text).sessions;
-      const s = sessions.find((x: any) => x.sessionId === sid);
-      if (s && ["completed", "failed", "timeout"].includes(s.status)) break;
-    }
+      // Poll until done
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const list = await client.callTool({
+          name: "list_sessions",
+          arguments: { include_completed: true },
+        });
+        const sessions = JSON.parse((list.content as any)[0].text).sessions;
+        const s = sessions.find((x: any) => x.sessionId === sid);
+        if (s && ["completed", "failed", "timeout"].includes(s.status)) break;
+      }
 
-    const out = await client.callTool({ name: "get_output", arguments: { session_id: sid } });
-    const output = JSON.parse((out.content as any)[0].text);
-    expect(output.output.length).toBeGreaterThan(0);
-    expect(notifications.length).toBeGreaterThan(0);
+      const out = await client.callTool({ name: "get_output", arguments: { session_id: sid } });
+      const output = JSON.parse((out.content as any)[0].text);
+      expect(output.output.length).toBeGreaterThan(0);
+      expect(notifications.length).toBeGreaterThan(0);
 
-    // All notifications must carry required meta fields
-    for (const n of notifications) {
-      expect(n.meta.session_id).toBe(sid);
-      expect(n.meta.event).toBeDefined();
-      expect(n.meta.model).toBeDefined();
-      expect(n.meta.elapsed_seconds).toBeDefined();
-    }
+      // All notifications must carry required meta fields
+      for (const n of notifications) {
+        expect(n.meta.session_id).toBe(sid);
+        expect(n.meta.event).toBeDefined();
+        expect(n.meta.model).toBeDefined();
+        expect(n.meta.elapsed_seconds).toBeDefined();
+      }
 
-    // At least one "running" event (first output triggers starting → running)
-    const events = notifications.map((n: any) => n.meta.event as string);
-    expect(events).toContain("running");
+      // At least one "running" event (first output triggers starting → running)
+      const events = notifications.map((n: any) => n.meta.event as string);
+      expect(events).toContain("running");
 
-    // Last event must be a terminal state
-    const lastEvent = events[events.length - 1];
-    expect(["completed", "failed"]).toContain(lastEvent);
+      // Last event must be a terminal state
+      const lastEvent = events[events.length - 1];
+      expect(["completed", "failed"]).toContain(lastEvent);
 
-    // No terminal event before a "running" event
-    const firstRunningIdx = events.indexOf("running");
-    const firstTerminalIdx = events.findIndex((e: string) => e === "completed" || e === "failed");
-    expect(firstTerminalIdx).toBeGreaterThan(firstRunningIdx);
-  }, 90000);
+      // No terminal event before a "running" event
+      const firstRunningIdx = events.indexOf("running");
+      const firstTerminalIdx = events.findIndex((e: string) => e === "completed" || e === "failed");
+      expect(firstTerminalIdx).toBeGreaterThan(firstRunningIdx);
+    },
+    90000
+  );
 });
 
 // ─── Group 1b: Tool group filtering ──────────────────────────────────────────
@@ -179,7 +208,9 @@ describe("Group 1b: MCP Protocol — channel-only tools", () => {
   }, 15000);
 
   afterAll(async () => {
-    try { await transport.close(); } catch {}
+    try {
+      await transport.close();
+    } catch {}
   });
 
   test("lists only the 5 channel tools when CLAUDISH_MCP_TOOLS=channel", async () => {
@@ -211,18 +242,15 @@ describe("Group 1b: MCP Protocol — low-level-only tools", () => {
   }, 15000);
 
   afterAll(async () => {
-    try { await transport.close(); } catch {}
+    try {
+      await transport.close();
+    } catch {}
   });
 
   test("lists only the 4 low-level tools when CLAUDISH_MCP_TOOLS=low-level", async () => {
     const result = await client.listTools();
     const names = result.tools.map((t) => t.name).sort();
-    expect(names).toEqual([
-      "compare_models",
-      "list_models",
-      "run_prompt",
-      "search_models",
-    ]);
+    expect(names).toEqual(["compare_models", "list_models", "run_prompt", "search_models"]);
   });
 });
 
@@ -262,20 +290,29 @@ async function runClaudeWithMcp(
       let stderr = "";
       let done = false;
 
-      const proc = spawn("claude", [
-        "-p",
-        "--mcp-config", configPath,
-        "--strict-mcp-config",
-        "--dangerously-skip-permissions",
-        "--bare",
-        prompt,
-      ], {
-        env: { ...process.env, ...opts?.extraEnv },
-        stdio: ["pipe", "pipe", "pipe"],
-      });
+      const proc = spawn(
+        "claude",
+        [
+          "-p",
+          "--mcp-config",
+          configPath,
+          "--strict-mcp-config",
+          "--dangerously-skip-permissions",
+          "--bare",
+          prompt,
+        ],
+        {
+          env: { ...process.env, ...opts?.extraEnv },
+          stdio: ["pipe", "pipe", "pipe"],
+        }
+      );
 
-      proc.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-      proc.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+      proc.stdout?.on("data", (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+      proc.stderr?.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
 
       const timer = setTimeout(() => {
         if (!done) {
@@ -302,7 +339,9 @@ async function runClaudeWithMcp(
       });
     });
   } finally {
-    try { unlinkSync(configPath); } catch {}
+    try {
+      unlinkSync(configPath);
+    } catch {}
   }
 }
 
@@ -327,7 +366,10 @@ describe("Group 2: Real Claude Code — MCP tool discovery", () => {
       expect(exitCode).toBe(0);
       expect(stdout.length).toBeGreaterThan(0);
       // The output should contain model-related content (either model names or "no recommended models")
-      const hasModels = stdout.includes("Recommended Models") || stdout.includes("recommended models") || stdout.includes("search_models");
+      const hasModels =
+        stdout.includes("Recommended Models") ||
+        stdout.includes("recommended models") ||
+        stdout.includes("search_models");
       expect(hasModels).toBe(true);
     },
     120_000
@@ -362,7 +404,7 @@ describe("Group 2: Real Claude Code — MCP tool discovery", () => {
       expect(exitCode).toBe(0);
       expect(stdout.length).toBeGreaterThan(0);
       // Claude should have created a session and shown the session_id
-      expect(stdout).toContain("session_id") ;
+      expect(stdout).toContain("session_id");
     },
     180_000
   );

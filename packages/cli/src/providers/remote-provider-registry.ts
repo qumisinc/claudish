@@ -137,7 +137,7 @@ export function validateRemoteProviderApiKey(provider: RemoteProvider): string |
       MOONSHOT_API_KEY:
         "export MOONSHOT_API_KEY='your-key' (get from https://platform.moonshot.cn/)",
       KIMI_CODING_API_KEY:
-        "export KIMI_CODING_API_KEY='sk-kimi-...' (get from https://kimi.com/code membership page, or run: claudish --kimi-login)",
+        "export KIMI_CODING_API_KEY='sk-kimi-...' (get from https://kimi.com/code membership page, or run: claudish login kimi)",
       ZHIPU_API_KEY: "export ZHIPU_API_KEY='your-key' (get from https://open.bigmodel.cn/)",
       GLM_CODING_API_KEY: "export GLM_CODING_API_KEY='your-key' (get from https://z.ai/subscribe)",
       OLLAMA_API_KEY: "export OLLAMA_API_KEY='your-key' (get from https://ollama.com/account)",

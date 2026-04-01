@@ -46,7 +46,11 @@ import {
 } from "./providers/model-catalog-resolver.js";
 import { FallbackHandler } from "./handlers/fallback-handler.js";
 import type { FallbackCandidate } from "./handlers/fallback-handler.js";
-import { getFallbackChain, warmZenModelCache, warmZenGoModelCache } from "./providers/auto-route.js";
+import {
+  getFallbackChain,
+  warmZenModelCache,
+  warmZenGoModelCache,
+} from "./providers/auto-route.js";
 import {
   loadRoutingRules,
   matchRoutingRule,

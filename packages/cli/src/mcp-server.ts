@@ -13,10 +13,7 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "dotenv";
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -173,7 +170,7 @@ async function getProxy(): Promise<ProxyServer> {
       port,
       process.env.OPENROUTER_API_KEY,
       undefined, // no default model — each call specifies its own
-      false,     // not monitor mode
+      false, // not monitor mode
       process.env.ANTHROPIC_API_KEY,
       undefined, // no model map
       { quiet: true }
@@ -186,7 +183,10 @@ async function getProxy(): Promise<ProxyServer> {
 }
 
 /** Parse Anthropic SSE stream and extract text content + usage */
-function parseAnthropicSse(raw: string): { text: string; usage?: { input: number; output: number } } {
+function parseAnthropicSse(raw: string): {
+  text: string;
+  usage?: { input: number; output: number };
+} {
   let text = "";
   let inputTokens = 0;
   let outputTokens = 0;
@@ -336,11 +336,16 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
 
   tools.push({
     name: "run_prompt",
-    description: "Run a prompt through any model — supports all providers (Kimi, GLM, Qwen, MiniMax, Gemini, GPT, Grok, etc.) with auto-routing, fallback chains, and custom routing rules.",
+    description:
+      "Run a prompt through any model — supports all providers (Kimi, GLM, Qwen, MiniMax, Gemini, GPT, Grok, etc.) with auto-routing, fallback chains, and custom routing rules.",
     inputSchema: {
       type: "object",
       properties: {
-        model: { type: "string", description: "Model name or ID. Short names auto-route to the best provider (e.g., 'kimi-k2.5', 'glm-5', 'gpt-5.4'). Provider prefix optional (e.g., 'google@gemini-3.1-pro-preview', 'or@x-ai/grok-3')." },
+        model: {
+          type: "string",
+          description:
+            "Model name or ID. Short names auto-route to the best provider (e.g., 'kimi-k2.5', 'glm-5', 'gpt-5.4'). Provider prefix optional (e.g., 'google@gemini-3.1-pro-preview', 'or@x-ai/grok-3').",
+        },
         prompt: { type: "string", description: "The prompt to send to the model" },
         system_prompt: { type: "string", description: "Optional system prompt" },
         max_tokens: { type: "number", description: "Maximum tokens in response (default: 4096)" },
@@ -364,7 +369,12 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
         return {
-          content: [{ type: "text" as const, text: `Error: ${errMsg}\n\n---\n**To report this error**, use the \`report_error\` tool with \`error_type: "provider_failure"\` and \`model: "${args.model}"\`.` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Error: ${errMsg}\n\n---\n**To report this error**, use the \`report_error\` tool with \`error_type: "provider_failure"\` and \`model: "${args.model}"\`.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -379,7 +389,14 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
     handler: async () => {
       const models = loadRecommendedModels();
       if (models.length === 0) {
-        return { content: [{ type: "text" as const, text: "No recommended models found. Try search_models instead." }] };
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "No recommended models found. Try search_models instead.",
+            },
+          ],
+        };
       }
       let output = "# Recommended Models\n\n";
       output += "| Model | Provider | Pricing | Context | Tools | Reasoning | Vision |\n";
@@ -418,7 +435,15 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
       const maxResults = (args.limit as number) || 10;
       const allModels = await loadAllModels();
       if (allModels.length === 0) {
-        return { content: [{ type: "text" as const, text: "Failed to load models. Check your internet connection." }], isError: true };
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "Failed to load models. Check your internet connection.",
+            },
+          ],
+          isError: true,
+        };
       }
       const results = allModels
         .map((model: any) => {
@@ -431,7 +456,9 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         .sort((a: any, b: any) => b.score - a.score)
         .slice(0, maxResults);
       if (results.length === 0) {
-        return { content: [{ type: "text" as const, text: `No models found matching "${query}"` }] };
+        return {
+          content: [{ type: "text" as const, text: `No models found matching "${query}"` }],
+        };
       }
       let output = `# Search Results for "${query}"\n\n`;
       output += "| Model | Provider | Pricing | Context |\n";
@@ -441,8 +468,11 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         const promptPrice = parseFloat(model.pricing?.prompt || "0") * 1000000;
         const completionPrice = parseFloat(model.pricing?.completion || "0") * 1000000;
         const avgPrice = (promptPrice + completionPrice) / 2;
-        const pricing = avgPrice > 0 ? `$${avgPrice.toFixed(2)}/1M` : avgPrice < 0 ? "varies" : "FREE";
-        const context = model.context_length ? `${Math.round(model.context_length / 1000)}K` : "N/A";
+        const pricing =
+          avgPrice > 0 ? `$${avgPrice.toFixed(2)}/1M` : avgPrice < 0 ? "varies" : "FREE";
+        const context = model.context_length
+          ? `${Math.round(model.context_length / 1000)}K`
+          : "N/A";
         output += `| ${model.id} | ${provider} | ${pricing} | ${context} |\n`;
       }
       output += `\nUse with: run_prompt(model="${results[0].model.id}", prompt="your prompt")`;
@@ -456,10 +486,17 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
     inputSchema: {
       type: "object",
       properties: {
-        models: { type: "array", items: { type: "string" }, description: "List of model IDs to compare" },
+        models: {
+          type: "array",
+          items: { type: "string" },
+          description: "List of model IDs to compare",
+        },
         prompt: { type: "string", description: "The prompt to send to all models" },
         system_prompt: { type: "string", description: "Optional system prompt" },
-        max_tokens: { type: "number", description: "Maximum tokens in response (omit to let model decide)" },
+        max_tokens: {
+          type: "number",
+          description: "Maximum tokens in response (omit to let model decide)",
+        },
       },
       required: ["models", "prompt"],
     },
@@ -470,13 +507,22 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
       const systemPrompt = args.system_prompt as string | undefined;
       const maxTokens = args.max_tokens as number | undefined;
 
-      const results: Array<{ model: string; response: string; error?: string; tokens?: { input: number; output: number } }> = [];
+      const results: Array<{
+        model: string;
+        response: string;
+        error?: string;
+        tokens?: { input: number; output: number };
+      }> = [];
       for (const model of modelIds) {
         try {
           const result = await runPromptViaProxy(model, prompt, systemPrompt, maxTokens);
           results.push({ model, response: result.content, tokens: result.usage });
         } catch (error) {
-          results.push({ model, response: "", error: error instanceof Error ? error.message : String(error) });
+          results.push({
+            model,
+            response: "",
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
 
@@ -494,9 +540,10 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         }
         output += "---\n\n";
       }
-      const failed = results.filter(r => r.error);
+      const failed = results.filter((r) => r.error);
       if (failed.length > 0) {
-        output += "---\n**To report failed model(s)**, use the `report_error` tool with `error_type: \"provider_failure\"` and the model ID(s) above.\n";
+        output +=
+          '---\n**To report failed model(s)**, use the `report_error` tool with `error_type: "provider_failure"` and the model ID(s) above.\n';
       }
       return { content: [{ type: "text" as const, text: output }] };
     },
@@ -506,15 +553,35 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
 
   tools.push({
     name: "team",
-    description: "Run AI models on a task with anonymized outputs and optional blind judging. Modes: 'run' (execute models), 'judge' (blind-vote on existing outputs), 'run-and-judge' (full pipeline), 'status' (check progress).",
+    description:
+      "Run AI models on a task with anonymized outputs and optional blind judging. Modes: 'run' (execute models), 'judge' (blind-vote on existing outputs), 'run-and-judge' (full pipeline), 'status' (check progress).",
     inputSchema: {
       type: "object",
       properties: {
-        mode: { type: "string", enum: ["run", "judge", "run-and-judge", "status"], description: "Operation mode" },
-        path: { type: "string", description: "Session directory path (must be within current working directory)" },
-        models: { type: "array", items: { type: "string" }, description: "Model IDs to run (required for 'run' and 'run-and-judge' modes)" },
-        judges: { type: "array", items: { type: "string" }, description: "Model IDs to use as judges (default: same as runners)" },
-        input: { type: "string", description: "Task prompt text (or place input.md in the session directory before calling)" },
+        mode: {
+          type: "string",
+          enum: ["run", "judge", "run-and-judge", "status"],
+          description: "Operation mode",
+        },
+        path: {
+          type: "string",
+          description: "Session directory path (must be within current working directory)",
+        },
+        models: {
+          type: "array",
+          items: { type: "string" },
+          description: "Model IDs to run (required for 'run' and 'run-and-judge' modes)",
+        },
+        judges: {
+          type: "array",
+          items: { type: "string" },
+          description: "Model IDs to use as judges (default: same as runners)",
+        },
+        input: {
+          type: "string",
+          description:
+            "Task prompt text (or place input.md in the session directory before calling)",
+        },
         timeout: { type: "number", description: "Per-model timeout in seconds (default: 300)" },
       },
       required: ["mode", "path"],
@@ -536,7 +603,9 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
             if (!models?.length) throw new Error("'models' is required for 'run' mode");
             setupSession(resolved, models, input);
             const status = await runModels(resolved, { timeout });
-            return { content: [{ type: "text" as const, text: formatTeamResult(status, resolved) }] };
+            return {
+              content: [{ type: "text" as const, text: formatTeamResult(status, resolved) }],
+            };
           }
           case "judge": {
             const verdict = await judgeResponses(resolved, { judges });
@@ -558,7 +627,12 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         }
       } catch (error) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
           isError: true,
         };
       }
@@ -567,11 +641,16 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
 
   tools.push({
     name: "report_error",
-    description: "Report a claudish error to developers. IMPORTANT: Ask the user for consent BEFORE calling this tool. Show them what data will be sent (sanitized). All data is anonymized: API keys, user paths, and emails are stripped. Set auto_send=true to suggest the user enables automatic future reporting.",
+    description:
+      "Report a claudish error to developers. IMPORTANT: Ask the user for consent BEFORE calling this tool. Show them what data will be sent (sanitized). All data is anonymized: API keys, user paths, and emails are stripped. Set auto_send=true to suggest the user enables automatic future reporting.",
     inputSchema: {
       type: "object",
       properties: {
-        error_type: { type: "string", enum: ["provider_failure", "team_failure", "stream_error", "adapter_error", "other"], description: "Category of the error" },
+        error_type: {
+          type: "string",
+          enum: ["provider_failure", "team_failure", "stream_error", "adapter_error", "other"],
+          description: "Category of the error",
+        },
         model: { type: "string", description: "Model ID that failed (anonymized in report)" },
         command: { type: "string", description: "Command that was run" },
         stderr_snippet: { type: "string", description: "First 500 chars of stderr output" },
@@ -579,7 +658,10 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         error_log_path: { type: "string", description: "Path to full error log file" },
         session_path: { type: "string", description: "Path to team session directory" },
         additional_context: { type: "string", description: "Any extra context about the error" },
-        auto_send: { type: "boolean", description: "If true, suggest the user enable automatic error reporting" },
+        auto_send: {
+          type: "boolean",
+          description: "If true, suggest the user enable automatic error reporting",
+        },
       },
       required: ["error_type"],
     },
@@ -597,21 +679,27 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
 
       let stderrFull = stderr_snippet || "";
       if (error_log_path) {
-        try { stderrFull = readFileSync(error_log_path, "utf-8"); } catch {}
+        try {
+          stderrFull = readFileSync(error_log_path, "utf-8");
+        } catch {}
       }
 
       let sessionData: Record<string, string> = {};
       if (session_path) {
         const sp = session_path;
         for (const file of ["status.json", "manifest.json", "input.md"]) {
-          try { sessionData[file] = readFileSync(join(sp, file), "utf-8"); } catch {}
+          try {
+            sessionData[file] = readFileSync(join(sp, file), "utf-8");
+          } catch {}
         }
         try {
           const errorDir = join(sp, "errors");
           if (existsSync(errorDir)) {
             for (const f of readdirSync(errorDir)) {
               if (f.endsWith(".log")) {
-                try { sessionData[`errors/${f}`] = readFileSync(join(errorDir, f), "utf-8"); } catch {}
+                try {
+                  sessionData[`errors/${f}`] = readFileSync(join(errorDir, f), "utf-8");
+                } catch {}
               }
             }
           }
@@ -621,7 +709,8 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
             if (f.startsWith("response-") && f.endsWith(".md")) {
               try {
                 const content = readFileSync(join(sp, f), "utf-8");
-                sessionData[f] = content.slice(0, 200) + (content.length > 200 ? "... (truncated)" : "");
+                sessionData[f] =
+                  content.slice(0, 200) + (content.length > 200 ? "... (truncated)" : "");
               } catch {}
             }
           }
@@ -648,9 +737,7 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         arch: process.arch,
         runtime: `bun ${process.version}`,
         context: sanitize(additional_context),
-        session: Object.fromEntries(
-          Object.entries(sessionData).map(([k, v]) => [k, sanitize(v)])
-        ),
+        session: Object.fromEntries(Object.entries(sessionData).map(([k, v]) => [k, sanitize(v)])),
       };
 
       const reportSummary = JSON.stringify(report, null, 2);
@@ -669,12 +756,33 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         });
 
         if (response.ok) {
-          return { content: [{ type: "text" as const, text: `Error report sent successfully.\n\n**Sanitized data sent:**\n\`\`\`json\n${reportSummary}\n\`\`\`${autoSendHint}` }] };
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Error report sent successfully.\n\n**Sanitized data sent:**\n\`\`\`json\n${reportSummary}\n\`\`\`${autoSendHint}`,
+              },
+            ],
+          };
         } else {
-          return { content: [{ type: "text" as const, text: `Error report endpoint returned ${response.status}. Report was NOT sent.\n\n**Data that would have been sent (all sanitized):**\n\`\`\`json\n${reportSummary}\n\`\`\`\n\nYou can manually report this at https://github.com/anthropics/claudish/issues${autoSendHint}` }] };
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Error report endpoint returned ${response.status}. Report was NOT sent.\n\n**Data that would have been sent (all sanitized):**\n\`\`\`json\n${reportSummary}\n\`\`\`\n\nYou can manually report this at https://github.com/anthropics/claudish/issues${autoSendHint}`,
+              },
+            ],
+          };
         }
       } catch (err) {
-        return { content: [{ type: "text" as const, text: `Could not reach error reporting endpoint (${err instanceof Error ? err.message : "network error"}).\n\n**Sanitized error data (for manual reporting):**\n\`\`\`json\n${reportSummary}\n\`\`\`\n\nReport manually at https://github.com/anthropics/claudish/issues${autoSendHint}` }] };
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Could not reach error reporting endpoint (${err instanceof Error ? err.message : "network error"}).\n\n**Sanitized error data (for manual reporting):**\n\`\`\`json\n${reportSummary}\n\`\`\`\n\nReport manually at https://github.com/anthropics/claudish/issues${autoSendHint}`,
+            },
+          ],
+        };
       }
     },
   });
@@ -683,15 +791,32 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
 
   tools.push({
     name: "create_session",
-    description: "Create a new claudish proxy session for an external model. Spawns an async session that produces channel notifications as it runs.",
+    description:
+      "Create a new claudish proxy session for an external model. Spawns an async session that produces channel notifications as it runs.",
     inputSchema: {
       type: "object",
       properties: {
-        model: { type: "string", description: "Model identifier (e.g., 'google@gemini-2.0-flash', 'x-ai/grok-code-fast-1')" },
-        prompt: { type: "string", description: "Initial prompt to send. If omitted, send later via send_input." },
-        timeout_seconds: { type: "number", description: "Session timeout in seconds (default: 600, max: 3600)" },
-        claude_flags: { type: "string", description: "Extra flags to pass to claudish (space-separated)" },
-        work_dir: { type: "string", description: "Working directory for the session (default: current directory)" },
+        model: {
+          type: "string",
+          description:
+            "Model identifier (e.g., 'google@gemini-2.0-flash', 'x-ai/grok-code-fast-1')",
+        },
+        prompt: {
+          type: "string",
+          description: "Initial prompt to send. If omitted, send later via send_input.",
+        },
+        timeout_seconds: {
+          type: "number",
+          description: "Session timeout in seconds (default: 600, max: 3600)",
+        },
+        claude_flags: {
+          type: "string",
+          description: "Extra flags to pass to claudish (space-separated)",
+        },
+        work_dir: {
+          type: "string",
+          description: "Working directory for the session (default: current directory)",
+        },
       },
       required: ["model"],
     },
@@ -711,12 +836,22 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         });
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({ session_id: sessionId, status: "starting" }) }],
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ session_id: sessionId, status: "starting" }),
+            },
+          ],
         };
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
         return {
-          content: [{ type: "text" as const, text: `Error creating session: ${errMsg}\n\n---\n**To report this error**, use the \`report_error\` tool with \`error_type: "provider_failure"\` and \`model: "${args.model}"\`.` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Error creating session: ${errMsg}\n\n---\n**To report this error**, use the \`report_error\` tool with \`error_type: "provider_failure"\` and \`model: "${args.model}"\`.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -725,7 +860,8 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
 
   tools.push({
     name: "send_input",
-    description: "Send input text to an active session's stdin. Use when a session is in 'waiting_for_input' state.",
+    description:
+      "Send input text to an active session's stdin. Use when a session is in 'waiting_for_input' state.",
     inputSchema: {
       type: "object",
       properties: {
@@ -736,10 +872,7 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
     },
     group: "channel",
     handler: async (args) => {
-      const success = sessionManager.sendInput(
-        args.session_id as string,
-        args.text as string
-      );
+      const success = sessionManager.sendInput(args.session_id as string, args.text as string);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ success }) }],
       };
@@ -748,12 +881,16 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
 
   tools.push({
     name: "get_output",
-    description: "Get output from a session's scrollback buffer. Call after 'completed' notification to get full response.",
+    description:
+      "Get output from a session's scrollback buffer. Call after 'completed' notification to get full response.",
     inputSchema: {
       type: "object",
       properties: {
         session_id: { type: "string", description: "Session ID from create_session" },
-        tail_lines: { type: "number", description: "Number of lines to return from the end (default: all)" },
+        tail_lines: {
+          type: "number",
+          description: "Number of lines to return from the end (default: all)",
+        },
       },
       required: ["session_id"],
     },
@@ -769,7 +906,12 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         };
       } catch (error) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
           isError: true,
         };
       }
@@ -778,7 +920,8 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
 
   tools.push({
     name: "cancel_session",
-    description: "Cancel a running session. Sends SIGTERM, then SIGKILL after 5 seconds if still running.",
+    description:
+      "Cancel a running session. Sends SIGTERM, then SIGKILL after 5 seconds if still running.",
     inputSchema: {
       type: "object",
       properties: {
@@ -801,14 +944,15 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
     inputSchema: {
       type: "object",
       properties: {
-        include_completed: { type: "boolean", description: "Include completed/failed/cancelled sessions (default: false)" },
+        include_completed: {
+          type: "boolean",
+          description: "Include completed/failed/cancelled sessions (default: false)",
+        },
       },
     },
     group: "channel",
     handler: async (args) => {
-      const sessions = sessionManager.listSessions(
-        args.include_completed as boolean | undefined
-      );
+      const sessions = sessionManager.listSessions(args.include_completed as boolean | undefined);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ sessions }) }],
       };
@@ -845,9 +989,7 @@ async function main() {
     { name: "claudish", version: "9.0.0" },
     {
       capabilities: {
-        ...(enabledGroups.has("channel")
-          ? { experimental: { "claude/channel": {} } }
-          : {}),
+        ...(enabledGroups.has("channel") ? { experimental: { "claude/channel": {} } } : {}),
         tools: {},
       },
       instructions: INSTRUCTIONS,
@@ -907,7 +1049,12 @@ async function main() {
       return await tool.handler(args ?? {});
     } catch (error) {
       return {
-        content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+        content: [
+          {
+            type: "text" as const,
+            text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
         isError: true,
       };
     }

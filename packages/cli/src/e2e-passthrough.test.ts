@@ -392,7 +392,13 @@ describe("Group 4: E2E — Backward compatibility regression", () => {
     const args = buildClaudeArgs(config);
 
     // Exact shape: --settings <path> -p --dangerously-skip-permissions prompt
-    expect(args).toEqual(["--settings", MOCK_SETTINGS_PATH, "-p", "--dangerously-skip-permissions", "prompt"]);
+    expect(args).toEqual([
+      "--settings",
+      MOCK_SETTINGS_PATH,
+      "-p",
+      "--dangerously-skip-permissions",
+      "prompt",
+    ]);
   });
 
   test("claudish --stdin --quiet --model grok → claudeArgs empty, stdin=true, quiet=true", async () => {

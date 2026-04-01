@@ -22,13 +22,22 @@ const VERSION = "v5.16";
 
 // ── Common models for autocomplete ────────────────────────────────────────────
 const COMMON_MODELS = [
-  "g@gemini-3.1-pro-preview", "g@gemini-2.5-flash", "g@gemini-2.5-pro",
-  "oai@gpt-4o", "oai@gpt-4o-mini", "oai@o3-mini",
+  "g@gemini-3.1-pro-preview",
+  "g@gemini-2.5-flash",
+  "g@gemini-2.5-pro",
+  "oai@gpt-4o",
+  "oai@gpt-4o-mini",
+  "oai@o3-mini",
   "or@anthropic/claude-sonnet-4-20250514",
-  "mm@minimax-m2.5", "kimi@kimi-k2.5", "glm@glm-5",
-  "zen@glm-5", "zen@minimax-m2.5-free",
-  "ll@gemini-2.5-flash", "ll@gpt-4o",
-  "or@google/gemini-3.1-pro-preview", "or@x-ai/grok-code-fast-1",
+  "mm@minimax-m2.5",
+  "kimi@kimi-k2.5",
+  "glm@glm-5",
+  "zen@glm-5",
+  "zen@minimax-m2.5-free",
+  "ll@gemini-2.5-flash",
+  "ll@gpt-4o",
+  "or@google/gemini-3.1-pro-preview",
+  "or@x-ai/grok-code-fast-1",
   "or@deepseek/deepseek-r1",
 ];
 
@@ -88,7 +97,9 @@ export function App() {
   const [chainOrder, setChainOrder] = useState<string[]>([]);
   const [chainCursor, setChainCursor] = useState(0);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, { status: "testing" | "valid" | "failed"; error?: string; ms?: number }>>({});
+  const [testResults, setTestResults] = useState<
+    Record<string, { status: "testing" | "valid" | "failed"; error?: string; ms?: number }>
+  >({});
   const [probeMode, setProbeMode] = useState<ProbeMode>("idle");
   const [probeModel, setProbeModel] = useState("");
   const [probeResults, setProbeResults] = useState<ProbeEntry[]>([]);
@@ -101,7 +112,8 @@ export function App() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestionIndex, setSuggestionIndex] = useState(-1);
   const [providerPickerIndex, setProviderPickerIndex] = useState(0);
-  const [providerPickerReturnMode, setProviderPickerReturnMode] = useState<Mode>("edit_profile_opus");
+  const [providerPickerReturnMode, setProviderPickerReturnMode] =
+    useState<Mode>("edit_profile_opus");
 
   // Chain selector uses same PROVIDERS list for consistent naming
   const CHAIN_PROVIDERS = PROVIDERS;
@@ -198,7 +210,10 @@ export function App() {
 
         const initial: ProbeEntry[] = chain.map((r) => {
           const provDef = PROVIDERS.find((p) => p.name === r.provider);
-          const hk = !!(provDef && (config.apiKeys?.[provDef.apiKeyEnvVar] || process.env[provDef.apiKeyEnvVar]));
+          const hk = !!(
+            provDef &&
+            (config.apiKeys?.[provDef.apiKeyEnvVar] || process.env[provDef.apiKeyEnvVar])
+          );
           return {
             provider: r.provider,
             displayName: r.displayName,
@@ -226,8 +241,7 @@ export function App() {
             const provDef = PROVIDERS.find((p) => p.name === chain[i]!.provider);
             const apiKey =
               (provDef
-                ? config.apiKeys?.[provDef.apiKeyEnvVar] ||
-                  process.env[provDef.apiKeyEnvVar]
+                ? config.apiKeys?.[provDef.apiKeyEnvVar] || process.env[provDef.apiKeyEnvVar]
                 : undefined) ?? "";
             const elapsed = () => Date.now() - startMs;
             const result = await testProviderKey(chain[i]!.provider, apiKey);
@@ -235,9 +249,16 @@ export function App() {
             const ok = result === "valid";
             setProbeResults((prev) =>
               prev.map((e, idx) => {
-                if (idx === i) return { ...e, status: ok ? ("success" as const) : ("failed" as const), error: ok ? undefined : result, ms };
+                if (idx === i)
+                  return {
+                    ...e,
+                    status: ok ? ("success" as const) : ("failed" as const),
+                    error: ok ? undefined : result,
+                    ms,
+                  };
                 // After success: remaining providers with keys become "not reached", without keys stay "no_key"
-                if (idx > i && ok && e.status !== "no_key") return { ...e, status: "skipped" as const };
+                if (idx > i && ok && e.status !== "no_key")
+                  return { ...e, status: "skipped" as const };
                 return e;
               })
             );
@@ -421,7 +442,11 @@ export function App() {
         const now = new Date().toISOString();
         if (profileScope === "project") {
           // Save to local .claudish.json
-          const localCfg = loadLocalConfig() ?? { version: "1.0.0", defaultProfile: "", profiles: {} };
+          const localCfg = loadLocalConfig() ?? {
+            version: "1.0.0",
+            defaultProfile: "",
+            profiles: {},
+          };
           localCfg.profiles[name] = { name, models: {}, createdAt: now, updatedAt: now };
           saveLocalConfig(localCfg);
         } else {
@@ -478,7 +503,11 @@ export function App() {
       const saveModelField = (fieldVal: string) => {
         const val = fieldVal.trim() === "auto" ? undefined : fieldVal.trim();
         if (profileScope === "project") {
-          const localCfg = loadLocalConfig() ?? { version: "1.0.0", defaultProfile: "", profiles: {} };
+          const localCfg = loadLocalConfig() ?? {
+            version: "1.0.0",
+            defaultProfile: "",
+            profiles: {},
+          };
           const prof = localCfg.profiles[editProfileName];
           if (prof) {
             if (mode === "edit_profile_opus") prof.models.opus = val || undefined;
@@ -681,7 +710,10 @@ export function App() {
           process.env[selectedProvider.apiKeyEnvVar];
         const provName = selectedProvider.name;
         if (!apiKey) {
-          setTestResults((prev) => ({ ...prev, [provName]: { status: "failed", error: "No key configured" } }));
+          setTestResults((prev) => ({
+            ...prev,
+            [provName]: { status: "failed", error: "No key configured" },
+          }));
           return;
         }
         setTestResults((prev) => ({ ...prev, [provName]: { status: "testing" } }));
@@ -691,9 +723,7 @@ export function App() {
           const ok = result === "valid";
           setTestResults((prev) => ({
             ...prev,
-            [provName]: ok
-              ? { status: "valid", ms }
-              : { status: "failed", error: result, ms },
+            [provName]: ok ? { status: "valid", ms } : { status: "failed", error: result, ms },
           }));
         });
       }
@@ -1144,20 +1174,28 @@ export function App() {
         )}
         {tr && (
           <text>
-            <span fg={C.blue} bold>{"Test:  "}</span>
+            <span fg={C.blue} bold>
+              {"Test:  "}
+            </span>
             {tr.status === "testing" && (
-              <span fg={C.yellow} bold>{"◌ testing..."}</span>
+              <span fg={C.yellow} bold>
+                {"◌ testing..."}
+              </span>
             )}
             {tr.status === "valid" && (
               <>
-                <span fg={C.green} bold>{"● valid"}</span>
+                <span fg={C.green} bold>
+                  {"● valid"}
+                </span>
                 {tr.ms !== undefined && <span fg={C.dim}>{`  ${tr.ms}ms`}</span>}
                 <span fg={C.fgMuted}>{"  API key is valid and endpoint is reachable."}</span>
               </>
             )}
             {tr.status === "failed" && (
               <>
-                <span fg={C.red} bold>{"✗ failed"}</span>
+                <span fg={C.red} bold>
+                  {"✗ failed"}
+                </span>
                 {tr.error && <span fg={C.red}>{`  ${tr.error}`}</span>}
               </>
             )}
@@ -1172,10 +1210,16 @@ export function App() {
   function ProfilesContent() {
     const globalCfg = config;
     const localCfg = loadLocalConfig();
-    const localProfileNames = localCfg ? new Set(Object.keys(localCfg.profiles)) : new Set<string>();
+    const localProfileNames = localCfg
+      ? new Set(Object.keys(localCfg.profiles))
+      : new Set<string>();
 
     // Build unified list: local profiles first, then global
-    const allEntries: Array<{ name: string; scope: "local" | "global"; models: Record<string, string | undefined> }> = [];
+    const allEntries: Array<{
+      name: string;
+      scope: "local" | "global";
+      models: Record<string, string | undefined>;
+    }> = [];
     if (localCfg) {
       for (const [name, prof] of Object.entries(localCfg.profiles)) {
         allEntries.push({ name, scope: "local", models: prof.models });
@@ -1190,14 +1234,21 @@ export function App() {
 
     // Edit mode prompt
     const editPromptLabel =
-      mode === "new_profile" ? `New ${profileScope} profile — name:`
-      : mode === "pick_profile_scope" ? "Scope for new profile:"
-      : mode === "pick_provider_prefix" ? "Select provider:"
-      : mode === "edit_profile_opus" ? `${editProfileName} — opus model:`
-      : mode === "edit_profile_sonnet" ? `${editProfileName} — sonnet model:`
-      : mode === "edit_profile_haiku" ? `${editProfileName} — haiku model:`
-      : mode === "edit_profile_subagent" ? `${editProfileName} — subagent model (optional):`
-      : null;
+      mode === "new_profile"
+        ? `New ${profileScope} profile — name:`
+        : mode === "pick_profile_scope"
+          ? "Scope for new profile:"
+          : mode === "pick_provider_prefix"
+            ? "Select provider:"
+            : mode === "edit_profile_opus"
+              ? `${editProfileName} — opus model:`
+              : mode === "edit_profile_sonnet"
+                ? `${editProfileName} — sonnet model:`
+                : mode === "edit_profile_haiku"
+                  ? `${editProfileName} — haiku model:`
+                  : mode === "edit_profile_subagent"
+                    ? `${editProfileName} — subagent model (optional):`
+                    : null;
 
     return (
       <box
@@ -1213,14 +1264,22 @@ export function App() {
         <text>
           <span fg={C.dim}>{"  "}</span>
           <span fg={C.fgMuted}>Active profile: </span>
-          <span fg={C.orange} bold>{activeProfileName}</span>
+          <span fg={C.orange} bold>
+            {activeProfileName}
+          </span>
         </text>
         {/* Column header */}
         <text>
           <span fg={C.dim}>{"   "}</span>
-          <span fg={C.blue} bold>{"PROFILE         "}</span>
-          <span fg={C.blue} bold>{"SCOPE    "}</span>
-          <span fg={C.blue} bold>{"MODELS"}</span>
+          <span fg={C.blue} bold>
+            {"PROFILE         "}
+          </span>
+          <span fg={C.blue} bold>
+            {"SCOPE    "}
+          </span>
+          <span fg={C.blue} bold>
+            {"MODELS"}
+          </span>
         </text>
         {/* Profile rows */}
         {allEntries.slice(0, Math.max(0, listH - 3)).map((entry, idx) => {
@@ -1230,27 +1289,32 @@ export function App() {
           const scopePad = entry.scope.padEnd(8).substring(0, 8);
           const shadowed = entry.scope === "global" && localProfileNames.has(entry.name);
 
-          const modelSummary = [
-            entry.models.opus ? `opus→${entry.models.opus.substring(0, 14)}` : null,
-            entry.models.sonnet ? `sonnet→${entry.models.sonnet.substring(0, 14)}` : null,
-          ]
-            .filter(Boolean)
-            .join("  ") || "(auto-route)";
+          const modelSummary =
+            [
+              entry.models.opus ? `opus→${entry.models.opus.substring(0, 14)}` : null,
+              entry.models.sonnet ? `sonnet→${entry.models.sonnet.substring(0, 14)}` : null,
+            ]
+              .filter(Boolean)
+              .join("  ") || "(auto-route)";
 
           return (
-            <box key={`${entry.scope}-${entry.name}`} height={1} flexDirection="row" backgroundColor={selected ? C.bgHighlight : C.bg}>
+            <box
+              key={`${entry.scope}-${entry.name}`}
+              height={1}
+              flexDirection="row"
+              backgroundColor={selected ? C.bgHighlight : C.bg}
+            >
               <text>
-                <span fg={isActive ? C.orange : C.dim}>
-                  {isActive ? "●" : " "}
-                </span>
-                <span fg={C.dim}>{" "}</span>
-                <span fg={selected ? C.white : isActive ? C.orange : C.fgMuted} bold={selected || isActive}>
+                <span fg={isActive ? C.orange : C.dim}>{isActive ? "●" : " "}</span>
+                <span fg={C.dim}> </span>
+                <span
+                  fg={selected ? C.white : isActive ? C.orange : C.fgMuted}
+                  bold={selected || isActive}
+                >
                   {namePad}
                 </span>
                 <span fg={C.dim}>{"  "}</span>
-                <span fg={entry.scope === "local" ? C.cyan : C.fgMuted}>
-                  {scopePad}
-                </span>
+                <span fg={entry.scope === "local" ? C.cyan : C.fgMuted}>{scopePad}</span>
                 <span fg={C.dim}>{"  "}</span>
                 <span fg={selected ? C.white : shadowed ? C.dim : C.fgMuted}>
                   {shadowed ? "(shadowed by local)  " : modelSummary}
@@ -1271,7 +1335,9 @@ export function App() {
         {isProfileEditMode && editPromptLabel && (
           <box flexDirection="column" paddingTop={1}>
             <text>
-              <span fg={C.blue} bold>{editPromptLabel + " "}</span>
+              <span fg={C.blue} bold>
+                {editPromptLabel + " "}
+              </span>
             </text>
 
             {/* Scope picker */}
@@ -1279,19 +1345,35 @@ export function App() {
               <box flexDirection="column">
                 <box height={1} flexDirection="row">
                   <box width={16} height={1} backgroundColor={C.bgHighlight} paddingX={1}>
-                    <text><span fg={C.green} bold>g</span><span fg={C.white}> global</span></text>
+                    <text>
+                      <span fg={C.green} bold>
+                        g
+                      </span>
+                      <span fg={C.white}> global</span>
+                    </text>
                   </box>
                   <box width={2} />
                   <box width={16} height={1} paddingX={1}>
-                    <text><span fg={C.cyan} bold>p</span><span fg={C.fgMuted}> project (.claudish.json)</span></text>
+                    <text>
+                      <span fg={C.cyan} bold>
+                        p
+                      </span>
+                      <span fg={C.fgMuted}> project (.claudish.json)</span>
+                    </text>
                   </box>
                 </box>
                 <text>
-                  <span fg={C.green} bold>g </span>
+                  <span fg={C.green} bold>
+                    g{" "}
+                  </span>
                   <span fg={C.fgMuted}>global · </span>
-                  <span fg={C.cyan} bold>p </span>
+                  <span fg={C.cyan} bold>
+                    p{" "}
+                  </span>
                   <span fg={C.fgMuted}>project · </span>
-                  <span fg={C.red} bold>Esc </span>
+                  <span fg={C.red} bold>
+                    Esc{" "}
+                  </span>
                   <span fg={C.fgMuted}>cancel</span>
                 </text>
               </box>
@@ -1301,23 +1383,38 @@ export function App() {
             {mode === "pick_provider_prefix" && (
               <box flexDirection="column">
                 {PROVIDER_PREFIXES.slice(0, 8).map((p, idx) => (
-                  <box key={p.name} height={1} backgroundColor={idx === providerPickerIndex ? C.bgHighlight : C.bg}>
+                  <box
+                    key={p.name}
+                    height={1}
+                    backgroundColor={idx === providerPickerIndex ? C.bgHighlight : C.bg}
+                  >
                     <text>
-                      <span fg={idx === providerPickerIndex ? C.white : C.dim}>{" "}</span>
-                      <span fg={idx === providerPickerIndex ? C.cyan : C.fgMuted} bold={idx === providerPickerIndex}>
+                      <span fg={idx === providerPickerIndex ? C.white : C.dim}> </span>
+                      <span
+                        fg={idx === providerPickerIndex ? C.cyan : C.fgMuted}
+                        bold={idx === providerPickerIndex}
+                      >
                         {p.prefix.padEnd(14).substring(0, 14)}
                       </span>
                       <span fg={C.dim}>{"  "}</span>
-                      <span fg={idx === providerPickerIndex ? C.fgMuted : C.dim}>{p.displayName}</span>
+                      <span fg={idx === providerPickerIndex ? C.fgMuted : C.dim}>
+                        {p.displayName}
+                      </span>
                     </text>
                   </box>
                 ))}
                 <text>
-                  <span fg={C.blue} bold>↑↓ </span>
+                  <span fg={C.blue} bold>
+                    ↑↓{" "}
+                  </span>
                   <span fg={C.fgMuted}>navigate · </span>
-                  <span fg={C.green} bold>Enter </span>
+                  <span fg={C.green} bold>
+                    Enter{" "}
+                  </span>
                   <span fg={C.fgMuted}>select prefix · </span>
-                  <span fg={C.red} bold>Esc </span>
+                  <span fg={C.red} bold>
+                    Esc{" "}
+                  </span>
                   <span fg={C.fgMuted}>back</span>
                 </text>
               </box>
@@ -1327,8 +1424,12 @@ export function App() {
             {mode !== "pick_profile_scope" && mode !== "pick_provider_prefix" && (
               <box flexDirection="column">
                 <text>
-                  <span fg={C.green} bold>{"> "}</span>
-                  <span fg={editProfileValue === "auto" ? C.yellow : C.white}>{editProfileValue}</span>
+                  <span fg={C.green} bold>
+                    {"> "}
+                  </span>
+                  <span fg={editProfileValue === "auto" ? C.yellow : C.white}>
+                    {editProfileValue}
+                  </span>
                   <span fg={C.cyan}>{"█"}</span>
                 </text>
 
@@ -1346,9 +1447,15 @@ export function App() {
                             <span fg={selected ? C.dim : C.dim}>{"  "}</span>
                             {matchIdx >= 0 && lower ? (
                               <>
-                                <span fg={selected ? C.fgMuted : C.dim}>{s.substring(0, matchIdx)}</span>
-                                <span fg={selected ? C.white : C.cyan} bold>{s.substring(matchIdx, matchIdx + lower.length)}</span>
-                                <span fg={selected ? C.fgMuted : C.dim}>{s.substring(matchIdx + lower.length)}</span>
+                                <span fg={selected ? C.fgMuted : C.dim}>
+                                  {s.substring(0, matchIdx)}
+                                </span>
+                                <span fg={selected ? C.white : C.cyan} bold>
+                                  {s.substring(matchIdx, matchIdx + lower.length)}
+                                </span>
+                                <span fg={selected ? C.fgMuted : C.dim}>
+                                  {s.substring(matchIdx + lower.length)}
+                                </span>
                               </>
                             ) : (
                               <span fg={selected ? C.white : C.fgMuted}>{s}</span>
@@ -1362,24 +1469,42 @@ export function App() {
 
                 {editProfileValue === "auto" ? (
                   <text>
-                    <span fg={C.yellow} bold>auto-route </span>
+                    <span fg={C.yellow} bold>
+                      auto-route{" "}
+                    </span>
                     <span fg={C.fgMuted}>— claudish will use the routing table · </span>
-                    <span fg={C.green} bold>Enter </span>
+                    <span fg={C.green} bold>
+                      Enter{" "}
+                    </span>
                     <span fg={C.fgMuted}>to confirm · </span>
-                    <span fg={C.red} bold>Esc </span>
+                    <span fg={C.red} bold>
+                      Esc{" "}
+                    </span>
                     <span fg={C.fgMuted}>cancel</span>
                   </text>
                 ) : (
                   <text>
-                    <span fg={C.green} bold>Enter </span>
+                    <span fg={C.green} bold>
+                      Enter{" "}
+                    </span>
                     <span fg={C.fgMuted}>save · </span>
-                    <span fg={C.blue} bold>Tab </span>
-                    <span fg={C.fgMuted}>{editProfileValue === "" ? "pick provider · " : "autocomplete · "}</span>
-                    <span fg={C.blue} bold>↑↓ </span>
+                    <span fg={C.blue} bold>
+                      Tab{" "}
+                    </span>
+                    <span fg={C.fgMuted}>
+                      {editProfileValue === "" ? "pick provider · " : "autocomplete · "}
+                    </span>
+                    <span fg={C.blue} bold>
+                      ↑↓{" "}
+                    </span>
                     <span fg={C.fgMuted}>suggestion · </span>
-                    <span fg={C.yellow} bold>a </span>
+                    <span fg={C.yellow} bold>
+                      a{" "}
+                    </span>
                     <span fg={C.fgMuted}>auto-route · </span>
-                    <span fg={C.red} bold>Esc </span>
+                    <span fg={C.red} bold>
+                      Esc{" "}
+                    </span>
                     <span fg={C.fgMuted}>cancel</span>
                   </text>
                 )}
@@ -1394,10 +1519,16 @@ export function App() {
   function ProfileDetail() {
     const globalCfg = config;
     const localCfg = loadLocalConfig();
-    const localProfileNames = localCfg ? new Set(Object.keys(localCfg.profiles)) : new Set<string>();
+    const localProfileNames = localCfg
+      ? new Set(Object.keys(localCfg.profiles))
+      : new Set<string>();
 
     // Resolve selected profile entry
-    const allEntries: Array<{ name: string; scope: "local" | "global"; models: Record<string, string | undefined> }> = [];
+    const allEntries: Array<{
+      name: string;
+      scope: "local" | "global";
+      models: Record<string, string | undefined>;
+    }> = [];
     if (localCfg) {
       for (const [name, prof] of Object.entries(localCfg.profiles)) {
         allEntries.push({ name, scope: "local", models: prof.models });
@@ -1409,7 +1540,7 @@ export function App() {
 
     const entry = allEntries[profileIndex];
     const isActive = entry ? entry.name === globalCfg.defaultProfile : false;
-    const shadowed = entry ? (entry.scope === "global" && localProfileNames.has(entry.name)) : false;
+    const shadowed = entry ? entry.scope === "global" && localProfileNames.has(entry.name) : false;
 
     return (
       <box
@@ -1430,7 +1561,9 @@ export function App() {
               const label = role.padEnd(8);
               return (
                 <text key={role}>
-                  <span fg={C.blue} bold>{label + ": "}</span>
+                  <span fg={C.blue} bold>
+                    {label + ": "}
+                  </span>
                   {isAuto ? (
                     <>
                       <span fg={C.yellow}>(auto-route</span>
@@ -1444,13 +1577,19 @@ export function App() {
               );
             })}
             <text>
-              <span fg={C.blue} bold>{"Scope:    "}</span>
+              <span fg={C.blue} bold>
+                {"Scope:    "}
+              </span>
               <span fg={entry.scope === "local" ? C.cyan : C.fgMuted}>
                 {entry.scope === "local"
                   ? `local (.claudish.json)`
                   : `global (~/.claudish/config.json)`}
               </span>
-              {isActive && <span fg={C.orange} bold>{"  ● active"}</span>}
+              {isActive && (
+                <span fg={C.orange} bold>
+                  {"  ● active"}
+                </span>
+              )}
               {shadowed && <span fg={C.dim}>{"  (shadowed)"}</span>}
             </text>
           </>
@@ -1483,6 +1622,7 @@ export function App() {
     "glm-coding": "GLM Coding Plan",
     google: "Direct Gemini API",
     openai: "Direct OpenAI API",
+    "openai-codex": "OpenAI Codex (Responses API)",
     zai: "Z.AI API",
     ollamacloud: "Cloud Ollama",
     vertex: "Vertex AI Express",
@@ -1506,7 +1646,9 @@ export function App() {
           paddingY={1}
         >
           <text>
-            <span fg={C.white} bold>{"Route Probe"}</span>
+            <span fg={C.white} bold>
+              {"Route Probe"}
+            </span>
           </text>
           <text> </text>
           <text>
@@ -1514,7 +1656,9 @@ export function App() {
           </text>
           <box flexDirection="row" height={1}>
             <text>
-              <span fg={C.green} bold>{"> "}</span>
+              <span fg={C.green} bold>
+                {"> "}
+              </span>
               <span fg={C.white}>{probeModel}</span>
               <span fg={C.cyan}>{"█"}</span>
             </text>
@@ -1530,9 +1674,7 @@ export function App() {
             </span>
           </text>
           <text>
-            <span fg={C.fgMuted}>
-              {"API key in order, stopping at the first success."}
-            </span>
+            <span fg={C.fgMuted}>{"API key in order, stopping at the first success."}</span>
           </text>
         </box>
       );
@@ -1540,8 +1682,7 @@ export function App() {
 
     if (probeMode === "running" || probeMode === "done") {
       const successEntry = probeResults.find((e) => e.status === "success");
-      const allFailed =
-        probeMode === "done" && !successEntry;
+      const allFailed = probeMode === "done" && !successEntry;
       const totalMs = successEntry?.ms;
 
       const statusBadge =
@@ -1568,7 +1709,9 @@ export function App() {
               <span fg={C.white} bold>
                 {probeMode === "done" ? "Probe: " : "Probing: "}
               </span>
-              <span fg={C.cyan} bold>{probeModel}</span>
+              <span fg={C.cyan} bold>
+                {probeModel}
+              </span>
               <span fg={C.dim}>{"  "}</span>
               {probeMode === "done" && (
                 <span fg={statusBadge.color} bold>
@@ -1576,9 +1719,7 @@ export function App() {
                   {statusBadge.text}
                 </span>
               )}
-              {probeMode === "running" && (
-                <span fg={C.yellow}>{"◌ probing..."}</span>
-              )}
+              {probeMode === "running" && <span fg={C.yellow}>{"◌ probing..."}</span>}
             </text>
           </box>
           <text> </text>
@@ -1596,28 +1737,43 @@ export function App() {
             const isSelected = entry.status === "success" && probeMode === "done";
 
             const statusIcon =
-              entry.status === "success" ? "●"
-              : entry.status === "failed" ? "✗"
-              : entry.status === "testing" ? "◌"
-              : isNoKey ? "○"
-              : isNotReached ? "·"
-              : "○";
+              entry.status === "success"
+                ? "●"
+                : entry.status === "failed"
+                  ? "✗"
+                  : entry.status === "testing"
+                    ? "◌"
+                    : isNoKey
+                      ? "○"
+                      : isNotReached
+                        ? "·"
+                        : "○";
 
             const statusColor =
-              entry.status === "success" ? C.green
-              : entry.status === "failed" ? C.red
-              : entry.status === "testing" ? C.yellow
-              : C.dim;
+              entry.status === "success"
+                ? C.green
+                : entry.status === "failed"
+                  ? C.red
+                  : entry.status === "testing"
+                    ? C.yellow
+                    : C.dim;
 
             const nameCol = entry.displayName.padEnd(18).substring(0, 18);
 
             const statusText =
-              entry.status === "success" ? (entry.ms !== undefined ? `${entry.ms}ms` : "success")
-              : entry.status === "failed" ? (entry.error ?? "failed")
-              : entry.status === "testing" ? "testing..."
-              : isNoKey ? "not configured, skipping"
-              : isNotReached ? "not reached"
-              : "waiting";
+              entry.status === "success"
+                ? entry.ms !== undefined
+                  ? `${entry.ms}ms`
+                  : "success"
+                : entry.status === "failed"
+                  ? (entry.error ?? "failed")
+                  : entry.status === "testing"
+                    ? "testing..."
+                    : isNoKey
+                      ? "not configured, skipping"
+                      : isNotReached
+                        ? "not reached"
+                        : "waiting";
 
             const reason = PROVIDER_REASONS[entry.provider] ?? entry.provider;
 
@@ -1633,10 +1789,12 @@ export function App() {
                   </span>
                   <span fg={C.dim}>{"  "}</span>
                   <span fg={statusColor} bold={entry.status === "success"}>
-                    {statusIcon}{" "}{statusText}
+                    {statusIcon} {statusText}
                   </span>
                   {isSelected && (
-                    <span fg={C.green} bold>{" ← routed here"}</span>
+                    <span fg={C.green} bold>
+                      {" ← routed here"}
+                    </span>
                   )}
                 </text>
                 <text>
@@ -1653,17 +1811,21 @@ export function App() {
               <text>
                 {allFailed ? (
                   <>
-                    <span fg={C.red} bold>{"Result: "}</span>
+                    <span fg={C.red} bold>
+                      {"Result: "}
+                    </span>
                     <span fg={C.red}>{"✗ No provider could serve this model"}</span>
                   </>
                 ) : (
                   <>
-                    <span fg={C.green} bold>{"Result: "}</span>
+                    <span fg={C.green} bold>
+                      {"Result: "}
+                    </span>
                     <span fg={C.fgMuted}>{"Routed to "}</span>
-                    <span fg={C.cyan} bold>{successEntry!.displayName}</span>
-                    {totalMs !== undefined && (
-                      <span fg={C.fgMuted}>{` in ${totalMs}ms`}</span>
-                    )}
+                    <span fg={C.cyan} bold>
+                      {successEntry!.displayName}
+                    </span>
+                    {totalMs !== undefined && <span fg={C.fgMuted}>{` in ${totalMs}ms`}</span>}
                   </>
                 )}
               </text>
@@ -1687,10 +1849,12 @@ export function App() {
       >
         {/* Default chain — bordered subsection */}
         <text>
-          <span fg={C.blue} bold>{" Default fallback chain:"}</span>
+          <span fg={C.blue} bold>
+            {" Default fallback chain:"}
+          </span>
         </text>
         <text>
-          <span fg={C.dim}>{" "}</span>
+          <span fg={C.dim}> </span>
           <span fg={C.cyan}>{"LiteLLM"}</span>
           <span fg={C.dim}>{" → "}</span>
           <span fg={C.cyan}>{"Zen Go"}</span>
@@ -1706,14 +1870,18 @@ export function App() {
         </text>
         {/* Custom rules header */}
         <text>
-          <span fg={C.blue} bold>{" Custom rules:"}</span>
+          <span fg={C.blue} bold>
+            {" Custom rules:"}
+          </span>
           <span fg={C.fgMuted}>{"  (override default for matching models)"}</span>
         </text>
         {/* Custom rules or empty state */}
         {ruleEntries.length === 0 && !isRoutingInput && (
           <text>
             <span fg={C.fgMuted}>{" None configured. Press "}</span>
-            <span fg={C.green} bold>a</span>
+            <span fg={C.green} bold>
+              a
+            </span>
             <span fg={C.fgMuted}>{" to add."}</span>
           </text>
         )}
@@ -1753,11 +1921,15 @@ export function App() {
         {mode === "add_routing_pattern" && (
           <box flexDirection="column">
             <text>
-              <span fg={C.blue} bold>{"Pattern "}</span>
+              <span fg={C.blue} bold>
+                {"Pattern "}
+              </span>
               <span fg={C.dim}>{"(e.g. kimi-*, gpt-4o):"}</span>
             </text>
             <text>
-              <span fg={C.green} bold>{"> "}</span>
+              <span fg={C.green} bold>
+                {"> "}
+              </span>
               <span fg={C.white}>{routingPattern}</span>
               <span fg={C.cyan}>{"█"}</span>
             </text>
@@ -1776,8 +1948,12 @@ export function App() {
         {mode === "add_routing_chain" && (
           <box flexDirection="column">
             <text>
-              <span fg={C.blue} bold>{"Select providers for "}</span>
-              <span fg={C.white} bold>{routingPattern}</span>
+              <span fg={C.blue} bold>
+                {"Select providers for "}
+              </span>
+              <span fg={C.white} bold>
+                {routingPattern}
+              </span>
               <span fg={C.dim}>{" (Space=toggle, 1-9=set position, Enter=save)"}</span>
             </text>
             {chainOrder.length > 0 && (
@@ -1790,7 +1966,9 @@ export function App() {
               const isCursor = idx === chainCursor;
               const isOn = chainSelected.has(prov.name);
               const pos = isOn ? chainOrder.indexOf(prov.name) + 1 : 0;
-              const hasKey = !!(config.apiKeys?.[prov.apiKeyEnvVar] || process.env[prov.apiKeyEnvVar]);
+              const hasKey = !!(
+                config.apiKeys?.[prov.apiKeyEnvVar] || process.env[prov.apiKeyEnvVar]
+              );
               const label = prov.displayName.padEnd(18).substring(0, 18);
               return (
                 <box key={prov.name} height={1} backgroundColor={isCursor ? C.bgHighlight : C.bg}>
@@ -1800,7 +1978,9 @@ export function App() {
                     ) : (
                       <span fg={C.dim}>{" [ ] "}</span>
                     )}
-                    <span fg={isCursor ? C.white : hasKey ? C.fgMuted : C.dim} bold={isCursor}>{label}</span>
+                    <span fg={isCursor ? C.white : hasKey ? C.fgMuted : C.dim} bold={isCursor}>
+                      {label}
+                    </span>
                     {hasKey ? (
                       <span fg={C.green}>{" ●"}</span>
                     ) : (
@@ -1812,7 +1992,6 @@ export function App() {
             })}
           </box>
         )}
-
       </box>
     );
   }
@@ -1856,8 +2035,13 @@ export function App() {
         </text>
         <text>
           <span fg={C.dim}>{"  Glob pattern (* = any). Chain tried left to right. "}</span>
-          <span fg={C.cyan} bold>{ruleEntries.length}</span>
-          <span fg={C.fgMuted}>{" custom rule"}{ruleEntries.length !== 1 ? "s" : ""}</span>
+          <span fg={C.cyan} bold>
+            {ruleEntries.length}
+          </span>
+          <span fg={C.fgMuted}>
+            {" custom rule"}
+            {ruleEntries.length !== 1 ? "s" : ""}
+          </span>
         </text>
       </box>
     );

@@ -43,7 +43,11 @@ describe("isMtmFork detection", () => {
   });
 
   test("detects our fork (has -e flag)", () => {
-    const bin = createFakeMtm(tmpDir, "mtm-fork", "[-T NAME] [-t NAME] [-c KEY] [-e CMD] [-s PERCENT]");
+    const bin = createFakeMtm(
+      tmpDir,
+      "mtm-fork",
+      "[-T NAME] [-t NAME] [-c KEY] [-e CMD] [-s PERCENT]"
+    );
     const runner = new MtmDiagRunner();
     // Access private method via prototype
     const result = (runner as any).isMtmFork(bin);

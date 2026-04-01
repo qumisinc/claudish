@@ -91,6 +91,13 @@ export interface ProviderTransport {
   getContextWindow?(): number;
 
   /**
+   * Active model name after fallback (e.g., capacity exhaustion triggered a model switch).
+   * If set, the composed handler writes this to the token file so the status line
+   * shows the actual model being used, not the originally requested one.
+   */
+  getActiveModelName?(): string | undefined;
+
+  /**
    * Optional cleanup on shutdown.
    */
   shutdown?(): Promise<void>;

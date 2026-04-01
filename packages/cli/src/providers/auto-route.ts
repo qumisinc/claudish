@@ -83,56 +83,24 @@ function checkApiKeyForProvider(nativeProvider: string, modelName: string): Auto
  * Hint information for a provider - used to generate helpful "how to authenticate" messages.
  */
 interface ProviderHintInfo {
-  /** CLI flag to trigger OAuth login, if the provider supports it (e.g., "--kimi-login") */
+  /** Subcommand args to trigger OAuth login, if the provider supports it (e.g., "login kimi") */
   loginFlag?: string;
   /** Primary API key environment variable name */
   apiKeyEnvVar?: string;
-  /** OpenRouter model ID for fallback routing (e.g., "moonshot/kimi-for-coding") */
-  openRouterModel?: string;
 }
 
 const PROVIDER_HINT_MAP: Record<string, ProviderHintInfo> = {
-  "kimi-coding": {
-    loginFlag: "--kimi-login",
-    apiKeyEnvVar: "KIMI_CODING_API_KEY",
-    openRouterModel: "moonshot/kimi-k2",
-  },
-  kimi: {
-    loginFlag: "--kimi-login",
-    apiKeyEnvVar: "MOONSHOT_API_KEY",
-    openRouterModel: "moonshot/moonshot-v1-8k",
-  },
-  google: {
-    loginFlag: "--gemini-login",
-    apiKeyEnvVar: "GEMINI_API_KEY",
-    openRouterModel: "google/gemini-2.0-flash",
-  },
-  "gemini-codeassist": {
-    loginFlag: "--gemini-login",
-    apiKeyEnvVar: "GEMINI_API_KEY",
-    openRouterModel: "google/gemini-2.0-flash",
-  },
-  openai: {
-    apiKeyEnvVar: "OPENAI_API_KEY",
-    openRouterModel: "openai/gpt-4o",
-  },
-  minimax: {
-    apiKeyEnvVar: "MINIMAX_API_KEY",
-    openRouterModel: "minimax/minimax-01",
-  },
-  "minimax-coding": {
-    apiKeyEnvVar: "MINIMAX_CODING_API_KEY",
-  },
-  glm: {
-    apiKeyEnvVar: "ZHIPU_API_KEY",
-    openRouterModel: "zhipuai/glm-4",
-  },
-  "glm-coding": {
-    apiKeyEnvVar: "GLM_CODING_API_KEY",
-  },
-  ollamacloud: {
-    apiKeyEnvVar: "OLLAMA_API_KEY",
-  },
+  "kimi-coding": { loginFlag: "login kimi", apiKeyEnvVar: "KIMI_CODING_API_KEY" },
+  kimi: { loginFlag: "login kimi", apiKeyEnvVar: "MOONSHOT_API_KEY" },
+  google: { loginFlag: "login gemini", apiKeyEnvVar: "GEMINI_API_KEY" },
+  "gemini-codeassist": { loginFlag: "login gemini", apiKeyEnvVar: "GEMINI_API_KEY" },
+  openai: { apiKeyEnvVar: "OPENAI_API_KEY" },
+  "openai-codex": { loginFlag: "login codex", apiKeyEnvVar: "OPENAI_CODEX_API_KEY" },
+  minimax: { apiKeyEnvVar: "MINIMAX_API_KEY" },
+  "minimax-coding": { apiKeyEnvVar: "MINIMAX_CODING_API_KEY" },
+  glm: { apiKeyEnvVar: "ZHIPU_API_KEY" },
+  "glm-coding": { apiKeyEnvVar: "GLM_CODING_API_KEY" },
+  ollamacloud: { apiKeyEnvVar: "OLLAMA_API_KEY" },
 };
 
 /**
@@ -161,10 +129,9 @@ export function getAutoRouteHint(modelName: string, nativeProvider: string): str
     hasOption = true;
   }
 
-  if (hint?.openRouterModel) {
-    lines.push(`  Use:  claudish --model or@${hint.openRouterModel}  (route via OpenRouter)`);
-    hasOption = true;
-  }
+  // Suggest routing the same model through OpenRouter
+  lines.push(`  Use:  claudish --model or@${modelName}  (route via OpenRouter)`);
+  hasOption = true;
 
   if (!hasOption) {
     // No useful hint for this provider - the existing error message is sufficient
@@ -280,6 +247,13 @@ interface SubscriptionAlternative {
 }
 
 const SUBSCRIPTION_ALTERNATIVES: Record<string, SubscriptionAlternative> = {
+  // OpenAI → OpenAI Codex (Responses API, ChatGPT Plus/Pro subscription)
+  openai: {
+    subscriptionProvider: "openai-codex",
+    modelName: null,
+    prefix: "cx",
+    displayName: "OpenAI Codex",
+  },
   // Kimi → Kimi Coding Plan (subscription endpoint only accepts "kimi-for-coding")
   kimi: {
     subscriptionProvider: "kimi-coding",

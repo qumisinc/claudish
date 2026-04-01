@@ -70,7 +70,9 @@ export class OpenAIProviderTransport implements ProviderTransport {
             // Exponential backoff: 2s, 4s, 8s, 16s, 30s
             delayMs = Math.min(2000 * Math.pow(2, attempt), 30000);
           }
-          log(`[${this.displayName}] 429 rate limited, retry ${attempt + 1}/${maxRetries} in ${(delayMs / 1000).toFixed(1)}s`);
+          log(
+            `[${this.displayName}] 429 rate limited, retry ${attempt + 1}/${maxRetries} in ${(delayMs / 1000).toFixed(1)}s`
+          );
           await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
         }

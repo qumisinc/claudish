@@ -298,6 +298,14 @@ export class ComposedHandler implements ModelHandler {
     if (this.provider.refreshAuth) {
       try {
         await this.provider.refreshAuth();
+        // Update display name in case auth resolved it (e.g., Gemini tier detection)
+        if (this.provider.displayName) {
+          this.tokenTracker.setProviderDisplayName(this.provider.displayName);
+        }
+        // Fetch quota for Code Assist so status line shows usage remaining
+        if (this.provider.name === "gemini-codeassist") {
+          this.fetchQuotaForStatusLine().catch(() => {});
+        }
       } catch (err: any) {
         log(`[${this.provider.displayName}] Auth/health check failed: ${err.message}`);
         logStderr(
@@ -406,6 +414,13 @@ export class ComposedHandler implements ModelHandler {
         return c.json({ error: { type: "connection_error", message: msg } }, 503 as any);
       }
       throw error;
+    }
+
+    // Check if the transport fell back to a different model (e.g., capacity exhaustion)
+    if (this.provider.getActiveModelName?.()) {
+      const activeModel = this.provider.getActiveModelName()!;
+      this.tokenTracker.setActiveModelName(activeModel);
+      log(`[ComposedHandler] Transport fell back to model: ${activeModel}`);
     }
 
     log(`[${this.provider.displayName}] Response status: ${response.status}`);
@@ -731,6 +746,30 @@ export class ComposedHandler implements ModelHandler {
   /** Expose token tracker for advanced use cases */
   getTokenTracker(): TokenTracker {
     return this.tokenTracker;
+  }
+
+  /** Fetch Code Assist quota and update token tracker (non-blocking, best-effort) */
+  private async fetchQuotaForStatusLine(): Promise<void> {
+    try {
+      const { retrieveUserQuota, getValidAccessToken } = await import("../auth/gemini-oauth.js");
+      const token = await getValidAccessToken();
+      // Get projectId from the transport (already set by refreshAuth)
+      const transport = this.provider as any;
+      const projectId = transport.projectId;
+      if (!projectId) return;
+
+      const quota = await retrieveUserQuota(token, projectId);
+      if (!quota?.buckets?.length) return;
+
+      // Find the bucket for the current model
+      const modelName = this.targetModel;
+      const bucket = quota.buckets.find((b: any) => b.modelId === modelName);
+      if (bucket && typeof bucket.remainingFraction === "number") {
+        this.tokenTracker.setQuotaRemaining(bucket.remainingFraction);
+      }
+    } catch {
+      // Non-fatal
+    }
   }
 
   /**

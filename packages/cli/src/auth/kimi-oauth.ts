@@ -322,7 +322,7 @@ export class KimiOAuth {
           log(`[KimiOAuth] Slow down requested, new interval: ${currentInterval / 1000}s`);
           continue;
         } else if (result.error === "expired_token") {
-          throw new Error("Device code expired. Please run `claudish --kimi-login` again.");
+          throw new Error("Device code expired. Please run `claudish login kimi` again.");
         } else if (result.error === "access_denied") {
           throw new Error("Authorization denied by user.");
         } else {
@@ -436,7 +436,7 @@ export class KimiOAuth {
 
     // Check if we have credentials
     if (!this.credentials) {
-      throw new Error("No Kimi OAuth credentials found. Please run `claudish --kimi-login` first.");
+      throw new Error("No Kimi OAuth credentials found. Please run `claudish login kimi` first.");
     }
 
     // Check if token is still valid (with 5-minute buffer)
@@ -468,7 +468,7 @@ export class KimiOAuth {
    */
   private async doRefreshToken(): Promise<string> {
     if (!this.credentials) {
-      throw new Error("No Kimi OAuth credentials found. Please run `claudish --kimi-login` first.");
+      throw new Error("No Kimi OAuth credentials found. Please run `claudish login kimi` first.");
     }
 
     log("[KimiOAuth] Refreshing access token");
@@ -537,7 +537,7 @@ export class KimiOAuth {
       // No API key available, throw error with instructions
       throw new Error(
         `OAuth credentials invalid. Please re-login or set API key:\n` +
-          `  - Run: claudish --kimi-login\n` +
+          `  - Run: claudish login kimi\n` +
           `  - Or set: export MOONSHOT_API_KEY='your-api-key'\n\n` +
           `Details: ${e.message}`
       );

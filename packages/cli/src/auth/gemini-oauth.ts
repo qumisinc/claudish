@@ -190,7 +190,7 @@ export class GeminiOAuth {
     // Check if we have credentials
     if (!this.credentials) {
       throw new Error(
-        "No Gemini OAuth credentials found. Please run `claudish --gemini-login` first."
+        "No Gemini OAuth credentials found. Please run `claudish login gemini` first."
       );
     }
 
@@ -216,7 +216,7 @@ export class GeminiOAuth {
   async refreshToken(): Promise<void> {
     if (!this.credentials) {
       throw new Error(
-        "No Gemini OAuth credentials found. Please run `claudish --gemini-login` first."
+        "No Gemini OAuth credentials found. Please run `claudish login gemini` first."
       );
     }
 
@@ -237,7 +237,7 @@ export class GeminiOAuth {
   private async doRefreshToken(): Promise<string> {
     if (!this.credentials) {
       throw new Error(
-        "No Gemini OAuth credentials found. Please run `claudish --gemini-login` first."
+        "No Gemini OAuth credentials found. Please run `claudish login gemini` first."
       );
     }
 
@@ -282,7 +282,7 @@ export class GeminiOAuth {
     } catch (e: any) {
       log(`[GeminiOAuth] Refresh failed: ${e.message}`);
       throw new Error(
-        `OAuth credentials invalid. Please run \`claudish --gemini-login\` again.\n\nDetails: ${e.message}`
+        `OAuth credentials invalid. Please run \`claudish login gemini\` again.\n\nDetails: ${e.message}`
       );
     }
   }
@@ -588,7 +588,8 @@ interface AllowedTier {
 }
 
 interface LoadCodeAssistResponse {
-  currentTier?: string;
+  currentTier?: string | { id?: string };
+  paidTier?: { id?: string; name?: string };
   cloudaicompanionProject?: string;
   allowedTiers?: AllowedTier[];
 }
@@ -610,19 +611,48 @@ export async function getValidAccessToken(): Promise<string> {
   return oauth.getAccessToken();
 }
 
-// Cache for project ID to avoid setup on every request
+// Cache for project ID and tier to avoid setup on every request
 let cachedProjectId: string | null = null;
+let cachedTierId: string | null = null;
+let cachedTierName: string | null = null;
+
+/** Short display names for known tier IDs (status bar needs compact names) */
+const TIER_SHORT_NAMES: Record<string, string> = {
+  "free-tier": "GeminiCA Free",
+  "standard-tier": "GeminiCA Std",
+  "g1-pro-tier": "GeminiCA Pro",
+  "legacy-tier": "GeminiCA Legacy",
+};
+
+/**
+ * Get a compact display name for the status bar.
+ * Returns short names like "G1 Pro", "Gemini Free".
+ */
+export function getGeminiTierDisplayName(): string {
+  if (!cachedTierId) return "Gemini Free";
+  return TIER_SHORT_NAMES[cachedTierId] || cachedTierId.replace(/-tier$/, "");
+}
+
+/**
+ * Get the full tier name from the API (for quota command / detailed views).
+ */
+export function getGeminiTierFullName(): string {
+  if (cachedTierName) return cachedTierName;
+  return getGeminiTierDisplayName();
+}
 
 /**
  * Setup the Gemini user (loadCodeAssist + onboardUser flow)
- * Returns the projectId to use for requests.
+ * Returns the projectId and tierId to use for requests.
  * Caches the result to avoid repeated API calls.
  */
-export async function setupGeminiUser(accessToken: string): Promise<{ projectId: string }> {
-  // Return cached project ID if available
-  if (cachedProjectId) {
-    log(`[GeminiOAuth] Using cached project ID: ${cachedProjectId}`);
-    return { projectId: cachedProjectId };
+export async function setupGeminiUser(
+  accessToken: string
+): Promise<{ projectId: string; tierId: string }> {
+  // Return cached results if available
+  if (cachedProjectId && cachedTierId) {
+    log(`[GeminiOAuth] Using cached project ID: ${cachedProjectId}, tier: ${cachedTierId}`);
+    return { projectId: cachedProjectId, tierId: cachedTierId };
   }
 
   const envProject = process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT_ID;
@@ -632,12 +662,20 @@ export async function setupGeminiUser(accessToken: string): Promise<{ projectId:
   const loadRes = await callLoadCodeAssist(accessToken, envProject);
   log(`[GeminiOAuth] loadCodeAssist response: ${JSON.stringify(loadRes)}`);
 
-  if (loadRes.currentTier || loadRes.cloudaicompanionProject) {
+  // Resolve tier: paidTier.id takes precedence over currentTier (matches gemini-cli)
+  const resolvedTier =
+    loadRes.paidTier?.id ||
+    (typeof loadRes.currentTier === "object" ? loadRes.currentTier?.id : loadRes.currentTier) ||
+    null;
+
+  if ((loadRes.currentTier || loadRes.paidTier) && loadRes.cloudaicompanionProject) {
     const projectId = envProject || loadRes.cloudaicompanionProject;
     if (projectId) {
       cachedProjectId = projectId;
-      log(`[GeminiOAuth] User already set up, project: ${projectId}`);
-      return { projectId };
+      cachedTierId = resolvedTier || "free-tier";
+      cachedTierName = loadRes.paidTier?.name || null;
+      log(`[GeminiOAuth] User already set up, project: ${projectId}, tier: ${cachedTierId}`);
+      return { projectId, tierId: cachedTierId };
     }
   }
 
@@ -645,7 +683,7 @@ export async function setupGeminiUser(accessToken: string): Promise<{ projectId:
   //    The server returns allowedTiers sorted by priority (best first).
   //    Free tier must NOT send a project ID (Google provisions one).
   //    Paid tiers (standard, legacy) require a project ID.
-  const tierId = loadRes.allowedTiers?.[0]?.id || "free-tier";
+  const tierId = resolvedTier || loadRes.allowedTiers?.[0]?.id || "free-tier";
   const isFree = tierId === "free-tier";
   const onboardProject = isFree ? undefined : envProject;
   const MAX_POLL_ATTEMPTS = 30; // 60 seconds max (30 * 2s)
@@ -675,14 +713,16 @@ export async function setupGeminiUser(accessToken: string): Promise<{ projectId:
   if (!projectId) {
     if (envProject) {
       cachedProjectId = envProject;
-      return { projectId: envProject };
+      cachedTierId = tierId;
+      return { projectId: envProject, tierId };
     }
     throw new Error("Gemini onboarding completed but no project ID returned.");
   }
 
   cachedProjectId = projectId;
-  log(`[GeminiOAuth] Onboarding complete, project: ${projectId}`);
-  return { projectId };
+  cachedTierId = tierId;
+  log(`[GeminiOAuth] Onboarding complete, project: ${projectId}, tier: ${tierId}`);
+  return { projectId, tierId };
 }
 
 async function callLoadCodeAssist(
@@ -742,4 +782,43 @@ async function callOnboardUser(
   }
 
   return (await res.json()) as LROResponse;
+}
+
+/** Quota bucket from retrieveUserQuota API */
+export interface QuotaBucket {
+  modelId?: string;
+  remainingFraction?: number;
+  remainingAmount?: string;
+  resetTime?: string;
+  tokenType?: string;
+}
+
+/**
+ * Retrieve per-model quota usage from Code Assist API.
+ * Returns quota buckets with remaining capacity per model.
+ * Uses cached projectId and accessToken — call after setupGeminiUser.
+ */
+export async function retrieveUserQuota(
+  accessToken: string,
+  projectId: string
+): Promise<{ buckets?: QuotaBucket[] } | null> {
+  try {
+    const res = await fetch(`${CODE_ASSIST_API_BASE}:retrieveUserQuota`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "User-Agent": `GeminiCLI/0.5.6/gemini-code-assist (${process.platform}; ${process.arch})`,
+      },
+      body: JSON.stringify({ project: projectId }),
+    });
+    if (!res.ok) {
+      log(`[GeminiOAuth] retrieveUserQuota failed: ${res.status}`);
+      return null;
+    }
+    return (await res.json()) as { buckets?: QuotaBucket[] };
+  } catch (err) {
+    log(`[GeminiOAuth] retrieveUserQuota error: ${err}`);
+    return null;
+  }
 }

@@ -27,41 +27,66 @@ function formatElapsed(ms: number): string {
   return `${m}m ${rem}s`;
 }
 
-// ─── mtm Binary Detection ─────────────────────────────────────────────────────
+// ─── Multiplexer Binary Detection ────────────────────────────────────────────
+
+interface MultiplexerBinary {
+  path: string;
+  kind: "magmux" | "mtm";
+}
 
 /**
- * Find the mtm binary. Priority:
- * 1. Platform-specific bundled binary (native/mtm/mtm-<platform>-<arch>)
- * 2. Generic dev build (native/mtm/mtm — built with `make`)
- * 3. mtm in PATH (only if it's our fork with -g support)
+ * Find a terminal multiplexer binary. Priority:
+ * 1. Dev-built magmux (native/magmux/magmux — freshest, has latest features)
+ * 2. Bundled magmux (native/magmux/magmux-<platform>-<arch>)
+ * 3. magmux in PATH
+ * 4. Dev-built mtm (native/mtm/mtm) — fallback
+ * 5. Bundled mtm (native/mtm/mtm-<platform>-<arch>) — fallback
+ * 6. mtm in PATH (only our fork with -g) — fallback
  */
-function findMtmBinary(): string {
+function findMultiplexerBinary(): MultiplexerBinary {
   const thisFile = fileURLToPath(import.meta.url);
   const thisDir = dirname(thisFile);
-
+  const pkgRoot = join(thisDir, "..");
   const platform = process.platform;
   const arch = process.arch;
 
-  // Package root is one level up from dist/ or src/
-  const pkgRoot = join(thisDir, "..");
+  // 1. Dev-built magmux (freshest, has latest features)
+  const builtMagmux = join(pkgRoot, "native", "magmux", "magmux");
+  if (existsSync(builtMagmux)) return { path: builtMagmux, kind: "magmux" };
 
-  // 1. Dev build first (freshest, has latest features like -g)
-  const builtDev = join(pkgRoot, "native", "mtm", "mtm");
-  if (existsSync(builtDev)) return builtDev;
+  // 2. Bundled magmux binary
+  const bundledMagmux = join(pkgRoot, "native", "magmux", `magmux-${platform}-${arch}`);
+  if (existsSync(bundledMagmux)) return { path: bundledMagmux, kind: "magmux" };
 
-  // 2. Platform-specific bundled binary (may be older)
-  const bundledPlatform = join(pkgRoot, "native", "mtm", `mtm-${platform}-${arch}`);
-  if (existsSync(bundledPlatform)) return bundledPlatform;
-
-  // 3. mtm in PATH — only our fork supports -g
+  // 3. magmux in PATH
   try {
-    const result = execSync("which mtm", { encoding: "utf-8" }).trim();
-    if (result && isMtmForkWithGrid(result)) return result;
+    const result = execSync("which magmux", { encoding: "utf-8" }).trim();
+    if (result) return { path: result, kind: "magmux" };
   } catch {
-    // Not in PATH
+    /* not in PATH */
   }
 
-  throw new Error("mtm binary not found. Build it with: cd packages/cli/native/mtm && make");
+  // 4. Dev-built mtm (fallback)
+  const builtMtm = join(pkgRoot, "native", "mtm", "mtm");
+  if (existsSync(builtMtm)) return { path: builtMtm, kind: "mtm" };
+
+  // 5. Bundled mtm binary (fallback)
+  const bundledMtm = join(pkgRoot, "native", "mtm", `mtm-${platform}-${arch}`);
+  if (existsSync(bundledMtm)) return { path: bundledMtm, kind: "mtm" };
+
+  // 6. mtm in PATH (fallback — only our fork with -g)
+  try {
+    const result = execSync("which mtm", { encoding: "utf-8" }).trim();
+    if (result && isMtmForkWithGrid(result)) return { path: result, kind: "mtm" };
+  } catch {
+    /* not in PATH */
+  }
+
+  throw new Error(
+    "No terminal multiplexer found. Install magmux (recommended) or build mtm:\n" +
+      "  brew install MadAppGang/tap/magmux\n" +
+      "  # or: cd packages/cli/native/mtm && make"
+  );
 }
 
 /**
@@ -271,7 +296,11 @@ export async function runWithGrid(
   mkdirSync(join(sessionPath, "errors"), { recursive: true });
   for (const anonId of Object.keys(manifest.models)) {
     const stale = join(sessionPath, "work", anonId, ".exit-code");
-    try { unlinkSync(stale); } catch { /* doesn't exist — fine */ }
+    try {
+      unlinkSync(stale);
+    } catch {
+      /* doesn't exist — fine */
+    }
   }
 
   // 3. Generate gridfile — one shell command per pane
@@ -285,21 +314,24 @@ export async function runWithGrid(
     // Run claudish in print mode — streams text to stdout without alternate screen.
     // -p = print mode (headless), -v = verbose claudish logs, -y = auto-approve.
     const model = manifest.models[anonId].model;
+    const paneIndex = Object.keys(manifest.models).indexOf(anonId);
     return [
       `claudish --model ${model} -y -v '${prompt}' 2>${errorLog};`,
       `_ec=$?; echo $_ec > ${exitCodeFile};`,
-      `if [ $_ec -eq 0 ]; then`,
-      `printf "\\n\\033[42;97;1m ✓ DONE \\033[0m\\n";`,
-      `else`,
-      `printf "\\n\\033[41;97;1m ✗ FAIL (exit $_ec) \\033[0m\\n";`,
+      `if [ -n "$MAGMUX_SOCK" ]; then`,
+      `  if [ $_ec -eq 0 ]; then`,
+      `    echo '{"cmd":"tint","pane":${paneIndex},"color":"green"}' | nc -U "$MAGMUX_SOCK" -w 1 2>/dev/null;`,
+      `  else`,
+      `    echo '{"cmd":"tint","pane":${paneIndex},"color":"red"}' | nc -U "$MAGMUX_SOCK" -w 1 2>/dev/null;`,
+      `  fi;`,
       `fi;`,
       `exec sleep 86400`,
     ].join(" ");
   });
   writeFileSync(gridfilePath, gridLines.join("\n") + "\n", "utf-8");
 
-  // 4. Find mtm binary
-  const mtmBin = findMtmBinary();
+  // 4. Find multiplexer binary (prefers magmux over mtm)
+  const mux = findMultiplexerBinary();
 
   // 5. Set up status bar file path
   const statusbarPath = join(sessionPath, "statusbar.txt");
@@ -308,7 +340,7 @@ export async function runWithGrid(
   const anonIds = Object.keys(manifest.models);
   const startTime = Date.now();
 
-  // Write initial status bar line before mtm starts
+  // Write initial status bar line before multiplexer starts
   appendFileSync(
     statusbarPath,
     renderGridStatusBar({
@@ -337,13 +369,18 @@ export async function runWithGrid(
     pollStatus(pollState);
   }, 500);
 
-  // 7. Spawn mtm with grid mode
-  const proc = spawn(mtmBin, ["-g", gridfilePath, "-S", statusbarPath, "-t", "xterm-256color"], {
+  // 7. Spawn multiplexer with grid mode
+  const spawnArgs = ["-g", gridfilePath, "-S", statusbarPath];
+  if (mux.kind === "mtm") {
+    spawnArgs.push("-t", "xterm-256color");
+  }
+  // magmux sets TERM=screen-256color internally — no -t flag needed
+  const proc = spawn(mux.path, spawnArgs, {
     stdio: "inherit",
     env: { ...process.env },
   });
 
-  // 8. Wait for mtm to exit
+  // 8. Wait for multiplexer to exit
   await new Promise<void>((resolve) => {
     proc.on("exit", () => resolve());
     proc.on("error", () => resolve());

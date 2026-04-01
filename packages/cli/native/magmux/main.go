@@ -4,17 +4,20 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unicode/utf8"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
@@ -57,7 +60,7 @@ const (
 
 // Color represents a terminal color: default (-1), 256-color (0-255), or truecolor
 type Color struct {
-	Index int16 // -1=default, 0-255=indexed
+	Index   int16 // -1=default, 0-255=indexed
 	R, G, B uint8
 	True    bool // if true, use R/G/B instead of Index
 }
@@ -949,7 +952,7 @@ const (
 
 type Pane struct {
 	splitType     SplitType
-	y, x, h, w   int // position and size in host terminal
+	y, x, h, w    int // position and size in host terminal
 	ratio         float64
 	child1        *Pane
 	child2        *Pane
@@ -970,6 +973,11 @@ type Pane struct {
 	charsetG1     byte
 	useG1         bool // SO (shift out) active — use G1 instead of G0
 	lastChar      rune // last printed character (for REP command)
+	exitCode      int       // exit status of child process (grid mode)
+	gridFrozen    bool      // child exited, show overlay (grid mode)
+	startedAt     time.Time // when the pane was created
+	frozenAt      time.Time // when gridFrozen became true
+	tintColor     string    // "", "green", or "red" — background tint override
 }
 
 func newPane(y, x, h, w int, command string, args ...string) (*Pane, error) {
@@ -981,6 +989,7 @@ func newPane(y, x, h, w int, command string, args ...string) (*Pane, error) {
 		ratio:     0.5,
 		charsetG0: 'B', // ASCII
 		charsetG1: 'B',
+		startedAt: time.Now(),
 	}
 	p.screen = newScreen(h, w)
 	p.primaryScreen = p.screen
@@ -1009,11 +1018,16 @@ func (p *Pane) spawnPTY(command string, args ...string) error {
 		Setsid:  true,
 		Setctty: true,
 	}
-	cmd.Env = append(os.Environ(),
+	env := append(os.Environ(),
 		"TERM=screen-256color",
 		fmt.Sprintf("COLUMNS=%d", p.w),
 		fmt.Sprintf("LINES=%d", p.h),
 	)
+	// If MAGMUX_SOCK is set (by startSocketIPC), propagate to children
+	if sockEnv := os.Getenv("MAGMUX_SOCK"); sockEnv != "" {
+		env = append(env, "MAGMUX_SOCK="+sockEnv)
+	}
+	cmd.Env = env
 
 	if err := cmd.Start(); err != nil {
 		pts.Close()
@@ -1047,6 +1061,15 @@ func (p *Pane) readLoop(wg *sync.WaitGroup) {
 		if err != nil {
 			p.mu.Lock()
 			p.dead = true
+			// Reap child process and extract exit status
+			if p.cmd != nil {
+				p.cmd.Wait()
+				if p.cmd.ProcessState != nil {
+					if ws, ok := p.cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+						p.exitCode = ws.ExitStatus()
+					}
+				}
+			}
 			p.mu.Unlock()
 			return
 		}
@@ -1088,44 +1111,7 @@ func (p *Pane) reshapeChildren() {
 }
 
 // ── PTY helpers (golang.org/x/sys/unix) ───────────────────────────────────────
-
-func openPTY() (master *os.File, slave *os.File, err error) {
-	// Open /dev/ptmx to get a master PTY fd
-	master, err = os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open /dev/ptmx: %w", err)
-	}
-	fd := int(master.Fd())
-
-	// grantpt (macOS: TIOCPTYGRANT ioctl)
-	if err := unix.IoctlSetInt(fd, unix.TIOCPTYGRANT, 0); err != nil {
-		master.Close()
-		return nil, nil, fmt.Errorf("grantpt: %w", err)
-	}
-
-	// unlockpt (macOS: TIOCPTYUNLK ioctl)
-	if err := unix.IoctlSetInt(fd, unix.TIOCPTYUNLK, 0); err != nil {
-		master.Close()
-		return nil, nil, fmt.Errorf("unlockpt: %w", err)
-	}
-
-	// ptsname (macOS: TIOCPTYGNAME ioctl) — returns slave device path
-	var nameBuf [128]byte
-	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd),
-		uintptr(unix.TIOCPTYGNAME), uintptr(unsafe.Pointer(&nameBuf[0]))); errno != 0 {
-		master.Close()
-		return nil, nil, fmt.Errorf("ptsname: %w", errno)
-	}
-	slaveName := string(nameBuf[:clen(nameBuf[:])])
-
-	slave, err = os.OpenFile(slaveName, os.O_RDWR|syscall.O_NOCTTY, 0)
-	if err != nil {
-		master.Close()
-		return nil, nil, fmt.Errorf("open slave %s: %w", slaveName, err)
-	}
-
-	return master, slave, nil
-}
+// openPTY() and sleepMs() are in pty_darwin.go / pty_linux.go (platform-specific)
 
 func clen(b []byte) int {
 	for i, c := range b {
@@ -1260,6 +1246,25 @@ func (r *Renderer) renderPane(p *Pane) {
 
 	p.mu.Lock()
 	s := p.screen
+
+	// Determine background tint color for this pane
+	var tintBg Color
+	hasTint := false
+	if p.tintColor == "green" {
+		tintBg = Color{Index: 22} // dark green
+		hasTint = true
+	} else if p.tintColor == "red" {
+		tintBg = Color{Index: 52} // dark red
+		hasTint = true
+	} else if p.gridFrozen {
+		if p.exitCode == 0 {
+			tintBg = Color{Index: 22} // dark green
+		} else {
+			tintBg = Color{Index: 52} // dark red
+		}
+		hasTint = true
+	}
+
 	for row := 0; row < s.rows && row < p.h; row++ {
 		r.moveTo(p.y+row, p.x)
 		for col := 0; col < s.cols && col < p.w; col++ {
@@ -1267,7 +1272,11 @@ func (r *Renderer) renderPane(p *Pane) {
 			if c.Cont {
 				continue // skip continuation cells
 			}
-			r.setAttr(c.Fg, c.Bg, c.Attr)
+			bg := c.Bg
+			if hasTint && bg.Index == -1 && !bg.True {
+				bg = tintBg
+			}
+			r.setAttr(c.Fg, bg, c.Attr)
 			if c.Ch == 0 || c.Ch == ' ' {
 				r.buf.WriteByte(' ')
 			} else {
@@ -1404,15 +1413,20 @@ func (r *Renderer) flush() {
 // ── Multiplexer ───────────────────────────────────────────────────────────────
 
 type Magmux struct {
-	root       *Pane
-	focused    *Pane
-	allPanes   []*Pane // leaf panes only
-	rows, cols int
-	statusText string
-	renderer   Renderer
-	rawState   *term.State
-	quit       chan struct{}
-	wg         sync.WaitGroup
+	root          *Pane
+	focused       *Pane
+	allPanes      []*Pane // leaf panes only
+	rows, cols    int
+	statusText    string
+	renderer      Renderer
+	rawState      *term.State
+	quit          chan struct{}
+	wg            sync.WaitGroup
+	statusBarFile string       // -S flag: poll this file for status bar text
+	statusMtime   int64        // last mtime (UnixNano) of statusBarFile
+	gridMode      bool         // -g flag active
+	sockPath      string       // IPC socket path
+	sockListener  net.Listener // IPC socket listener
 }
 
 func (m *Magmux) init() error {
@@ -1548,6 +1562,131 @@ func (m *Magmux) buildLayout(commands []PaneConfig) error {
 
 		m.allPanes = []*Pane{p1, p2, p3}
 		m.focused = p1
+	}
+
+	return nil
+}
+
+// buildColumn recursively builds a vertical stack of panes from the given commands.
+// Returns the list of leaf panes and the root container node for the column.
+func buildColumn(cmds []PaneConfig, y, x, h, w int) ([]*Pane, *Pane, error) {
+	if len(cmds) == 0 {
+		return nil, nil, fmt.Errorf("no commands for column")
+	}
+	if len(cmds) == 1 {
+		p, err := newPane(y, x, h, w, cmds[0].Cmd, cmds[0].Args...)
+		if err != nil {
+			return nil, nil, err
+		}
+		return []*Pane{p}, p, nil
+	}
+
+	// Split: top half gets first command, bottom half recurses with the rest
+	h1 := h / len(cmds)
+	if h1 < 1 {
+		h1 = 1
+	}
+	h2 := h - h1 - 1 // -1 for border
+
+	topPane, err := newPane(y, x, h1, w, cmds[0].Cmd, cmds[0].Args...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	botPanes, botRoot, err := buildColumn(cmds[1:], y+h1+1, x, h2, w)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	container := &Pane{
+		splitType: SplitVertical,
+		y:         y, x: x, h: h, w: w,
+		ratio: float64(h1) / float64(h),
+	}
+	container.child1 = topPane
+	container.child2 = botRoot
+	topPane.parent = container
+	botRoot.parent = container
+
+	allPanes := append([]*Pane{topPane}, botPanes...)
+	return allPanes, container, nil
+}
+
+// buildGridLayout creates a balanced 2-column grid layout for N panes.
+func (m *Magmux) buildGridLayout(commands []PaneConfig) error {
+	statusH := 1
+	availH := m.rows - statusH
+
+	if len(commands) == 0 {
+		return fmt.Errorf("no commands specified")
+	}
+
+	switch len(commands) {
+	case 1:
+		// Fullscreen single pane
+		p, err := newPane(0, 0, availH, m.cols, commands[0].Cmd, commands[0].Args...)
+		if err != nil {
+			return err
+		}
+		m.root = p
+		m.allPanes = []*Pane{p}
+		m.focused = p
+
+	case 2:
+		// Horizontal split (side-by-side), reuse existing 2-pane logic
+		m.root = &Pane{
+			splitType: SplitHorizontal,
+			y:         0, x: 0, h: availH, w: m.cols,
+			ratio: 0.5,
+		}
+		w1 := m.cols / 2
+		w2 := m.cols - w1 - 1
+		p1, err := newPane(0, 0, availH, w1, commands[0].Cmd, commands[0].Args...)
+		if err != nil {
+			return err
+		}
+		p2, err := newPane(0, w1+1, availH, w2, commands[1].Cmd, commands[1].Args...)
+		if err != nil {
+			return err
+		}
+		m.root.child1 = p1
+		m.root.child2 = p2
+		p1.parent = m.root
+		p2.parent = m.root
+		m.allPanes = []*Pane{p1, p2}
+		m.focused = p1
+
+	default:
+		// 3+ panes: balanced 2-column grid
+		// Left column gets ceil(N/2) panes, right gets the rest
+		leftCount := (len(commands) + 1) / 2
+		leftCmds := commands[:leftCount]
+		rightCmds := commands[leftCount:]
+
+		w1 := m.cols / 2
+		w2 := m.cols - w1 - 1 // -1 for border
+
+		leftPanes, leftRoot, err := buildColumn(leftCmds, 0, 0, availH, w1)
+		if err != nil {
+			return err
+		}
+		rightPanes, rightRoot, err := buildColumn(rightCmds, 0, w1+1, availH, w2)
+		if err != nil {
+			return err
+		}
+
+		m.root = &Pane{
+			splitType: SplitHorizontal,
+			y:         0, x: 0, h: availH, w: m.cols,
+			ratio: float64(w1) / float64(m.cols),
+		}
+		m.root.child1 = leftRoot
+		m.root.child2 = rightRoot
+		leftRoot.parent = m.root
+		rightRoot.parent = m.root
+
+		m.allPanes = append(leftPanes, rightPanes...)
+		m.focused = m.allPanes[0]
 	}
 
 	return nil
@@ -1943,6 +2082,45 @@ func (m *Magmux) renderLoop() {
 }
 
 func (m *Magmux) render() {
+	// Poll status bar file (stat is cheap at ~60fps, only read on mtime change)
+	if m.statusBarFile != "" {
+		if info, err := os.Stat(m.statusBarFile); err == nil {
+			mtime := info.ModTime().UnixNano()
+			if mtime != m.statusMtime {
+				m.statusMtime = mtime
+				if data, err := os.ReadFile(m.statusBarFile); err == nil {
+					// Take last non-empty line
+					lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+					for i := len(lines) - 1; i >= 0; i-- {
+						if strings.TrimSpace(lines[i]) != "" {
+							m.statusText = lines[i]
+							break
+						}
+					}
+				}
+				// Force redraw when status changes
+				for _, p := range m.allPanes {
+					p.mu.Lock()
+					p.dirty = true
+					p.mu.Unlock()
+				}
+			}
+		}
+	}
+
+	// Grid mode: mark dead panes as frozen
+	if m.gridMode {
+		for _, p := range m.allPanes {
+			p.mu.Lock()
+			if p.dead && !p.gridFrozen {
+				p.gridFrozen = true
+				p.frozenAt = time.Now()
+				p.dirty = true
+			}
+			p.mu.Unlock()
+		}
+	}
+
 	// Check if any pane has new content
 	anyDirty := false
 	for _, p := range m.allPanes {
@@ -1967,6 +2145,94 @@ func (m *Magmux) render() {
 	r.hideCursor()
 	r.renderPane(m.root)
 
+	// Result banners for grid-frozen panes (3 rows centered in pane)
+	if m.gridMode {
+		for _, p := range m.allPanes {
+			p.mu.Lock()
+			frozen := p.gridFrozen
+			code := p.exitCode
+			started := p.startedAt
+			froze := p.frozenAt
+			p.mu.Unlock()
+			if !frozen {
+				continue
+			}
+			// Need at least 3 rows for the banner
+			if p.h < 3 {
+				continue
+			}
+			// Calculate duration
+			elapsed := froze.Sub(started)
+			var durStr string
+			if elapsed >= time.Hour {
+				durStr = fmt.Sprintf("%.0fm", elapsed.Minutes())
+			} else if elapsed >= time.Minute {
+				durStr = fmt.Sprintf("%.1fm", elapsed.Minutes())
+			} else {
+				durStr = fmt.Sprintf("%.1fs", elapsed.Seconds())
+			}
+
+			// Banner colors: bright green (28) for success, bright red (124) for failure
+			var bannerBg string
+			var statusText string
+			if code == 0 {
+				bannerBg = "48;5;28"
+				statusText = " \xe2\x9c\x93 DONE"
+			} else {
+				bannerBg = "48;5;124"
+				statusText = fmt.Sprintf(" \xe2\x9c\x97 FAIL (exit %d)", code)
+			}
+
+			// Banner centered vertically in the pane
+			bannerY := p.y + (p.h-3)/2
+
+			// Row 1: separator line ━━━━
+			r.moveTo(bannerY, p.x)
+			r.buf.WriteString(fmt.Sprintf("\x1b[0;1;%s;97m", bannerBg))
+			for col := 0; col < p.w; col++ {
+				r.buf.WriteString("\xe2\x94\x81") // ━
+			}
+
+			// Row 2: status text + right-aligned duration
+			r.moveTo(bannerY+1, p.x)
+			r.buf.WriteString(fmt.Sprintf("\x1b[0;1;%s;97m", bannerBg))
+			// Write status text
+			statusRunes := []rune(statusText)
+			written := 0
+			for _, ch := range statusRunes {
+				r.buf.WriteRune(ch)
+				written++
+			}
+			// Fill remaining space, put duration right-aligned
+			durRunes := []rune(durStr)
+			padding := p.w - written - len(durRunes)
+			if padding < 1 {
+				padding = 1
+			}
+			for i := 0; i < padding; i++ {
+				r.buf.WriteByte(' ')
+			}
+			if padding+written+len(durRunes) <= p.w {
+				for _, ch := range durRunes {
+					r.buf.WriteRune(ch)
+				}
+			}
+
+			// Row 3: separator line ━━━━
+			r.moveTo(bannerY+2, p.x)
+			r.buf.WriteString(fmt.Sprintf("\x1b[0;1;%s;97m", bannerBg))
+			for col := 0; col < p.w; col++ {
+				r.buf.WriteString("\xe2\x94\x81") // ━
+			}
+
+			// Reset attributes after banner
+			r.buf.WriteString("\x1b[0m")
+			r.prevFg = Color{Index: -2} // force re-emit on next setAttr
+			r.prevBg = Color{Index: -2}
+			r.prevAttr = 0
+		}
+	}
+
 	// Selection highlight overlay
 	if sel.pane != nil && (sel.active || (sel.sy != sel.ey || sel.sx != sel.ex)) {
 		r.renderSelection(sel.pane)
@@ -1987,7 +2253,99 @@ func (m *Magmux) render() {
 	r.flush()
 }
 
+// ── Unix Socket IPC ──────────────────────────────────────────────────────────
+
+// ipcCommand represents a JSON command received over the socket
+type ipcCommand struct {
+	Cmd   string `json:"cmd"`
+	Pane  int    `json:"pane,omitempty"`
+	Text  string `json:"text,omitempty"`
+	Color string `json:"color,omitempty"`
+}
+
+func (m *Magmux) startSocketIPC() {
+	m.sockPath = fmt.Sprintf("/tmp/magmux-%d.sock", os.Getpid())
+	os.Remove(m.sockPath) // clean up stale socket
+
+	ln, err := net.Listen("unix", m.sockPath)
+	if err != nil {
+		if dbgFile != nil {
+			fmt.Fprintf(dbgFile, "IPC: failed to listen on %s: %v\n", m.sockPath, err)
+		}
+		return
+	}
+	m.sockListener = ln
+
+	// Set MAGMUX_SOCK so children (spawned after this) can discover it
+	os.Setenv("MAGMUX_SOCK", m.sockPath)
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return // listener closed
+			}
+			go m.handleIPCConn(conn)
+		}
+	}()
+}
+
+func (m *Magmux) handleIPCConn(conn net.Conn) {
+	defer conn.Close()
+	scanner := bufio.NewScanner(conn)
+	for scanner.Scan() {
+		line := scanner.Text()
+		var cmd ipcCommand
+		if err := json.Unmarshal([]byte(line), &cmd); err != nil {
+			continue
+		}
+		switch cmd.Cmd {
+		case "overlay":
+			if cmd.Pane >= 0 && cmd.Pane < len(m.allPanes) {
+				p := m.allPanes[cmd.Pane]
+				p.mu.Lock()
+				p.gridFrozen = true
+				p.frozenAt = time.Now()
+				if cmd.Color == "green" || strings.Contains(cmd.Text, "DONE") {
+					p.exitCode = 0
+				} else {
+					p.exitCode = 1
+				}
+				p.dirty = true
+				p.mu.Unlock()
+			}
+		case "status":
+			m.statusText = cmd.Text
+			// Force redraw
+			for _, p := range m.allPanes {
+				p.mu.Lock()
+				p.dirty = true
+				p.mu.Unlock()
+			}
+		case "tint":
+			if cmd.Pane >= 0 && cmd.Pane < len(m.allPanes) {
+				p := m.allPanes[cmd.Pane]
+				p.mu.Lock()
+				p.tintColor = cmd.Color
+				p.dirty = true
+				p.mu.Unlock()
+				if dbgFile != nil {
+					fmt.Fprintf(dbgFile, "IPC: tint pane=%d color=%s\n", cmd.Pane, cmd.Color)
+				}
+			}
+		}
+	}
+}
+
 func (m *Magmux) cleanup() {
+	// Close socket listener and remove socket file
+	if m.sockListener != nil {
+		m.sockListener.Close()
+	}
+	if m.sockPath != "" {
+		os.Remove(m.sockPath)
+	}
+
 	for _, p := range m.allPanes {
 		if p.cmd != nil && p.cmd.Process != nil {
 			p.cmd.Process.Signal(syscall.SIGHUP)
@@ -2043,11 +2401,29 @@ func clamp(v, lo, hi int) int {
 	return v
 }
 
-func sleepMs(ms int) {
-	var tv unix.Timeval
-	tv.Sec = int64(ms / 1000)
-	tv.Usec = int32((ms % 1000) * 1000)
-	unix.Select(0, nil, nil, nil, &tv)
+// sleepMs is in pty_darwin.go / pty_linux.go (Timeval.Usec type differs)
+
+// ── Grid file parser ─────────────────────────────────────────────────────────
+
+// parseGridFile reads a grid file: one command per non-empty line, skip # comments and blank lines
+func parseGridFile(path, shell string) []PaneConfig {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "magmux: cannot read grid file %s: %v\n", path, err)
+		os.Exit(1)
+	}
+	var configs []PaneConfig
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		configs = append(configs, PaneConfig{
+			Cmd:  shell,
+			Args: []string{"-l", "-c", line},
+		})
+	}
+	return configs
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -2070,19 +2446,40 @@ func main() {
 		{Cmd: shell, Args: []string{"-l"}},
 	}
 
-	// Parse -e flags for custom commands
+	// Parse flags: -e CMD, -g FILE, -S FILE
 	args := os.Args[1:]
 	var customCmds []PaneConfig
+	var gridFile string
+	var statusFile string
 	for i := 0; i < len(args); i++ {
-		if args[i] == "-e" && i+1 < len(args) {
-			i++
-			customCmds = append(customCmds, PaneConfig{
-				Cmd:  shell,
-				Args: []string{"-l", "-c", args[i]},
-			})
+		switch args[i] {
+		case "-e":
+			if i+1 < len(args) {
+				i++
+				customCmds = append(customCmds, PaneConfig{
+					Cmd:  shell,
+					Args: []string{"-l", "-c", args[i]},
+				})
+			}
+		case "-g":
+			if i+1 < len(args) {
+				i++
+				gridFile = args[i]
+			}
+		case "-S":
+			if i+1 < len(args) {
+				i++
+				statusFile = args[i]
+			}
 		}
 	}
-	if len(customCmds) > 0 {
+
+	// Resolve commands: -g overrides -e, -e overrides default
+	gridMode := false
+	if gridFile != "" {
+		commands = parseGridFile(gridFile, shell)
+		gridMode = true
+	} else if len(customCmds) > 0 {
 		commands = customCmds
 	}
 
@@ -2093,7 +2490,19 @@ func main() {
 	}
 	defer mux.restore()
 
-	if err := mux.buildLayout(commands); err != nil {
+	mux.statusBarFile = statusFile
+	mux.gridMode = gridMode
+
+	// Start socket IPC BEFORE spawning panes so children get MAGMUX_SOCK
+	mux.startSocketIPC()
+
+	var err error
+	if mux.gridMode {
+		err = mux.buildGridLayout(commands)
+	} else {
+		err = mux.buildLayout(commands)
+	}
+	if err != nil {
 		mux.restore()
 		fmt.Fprintf(os.Stderr, "magmux: %v\n", err)
 		os.Exit(1)
@@ -2108,6 +2517,6 @@ func main() {
 	mux.cleanup()
 }
 
-// Suppress unused import warning
+// Suppress unused import warnings
 var _ = io.EOF
 var _ = math.MaxInt
