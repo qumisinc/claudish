@@ -2,6 +2,16 @@
 
 All notable changes to [Claudish](https://github.com/MadAppGang/claudish).
 
+## [6.6.0] - 2026-04-01
+
+### Documentation
+
+- update CHANGELOG.md for v6.5.3([`76e4df5`](https://github.com/MadAppGang/claudish/commit/76e4df586c651289b17196366cd4f5711a320058))
+
+### New Features
+
+- magmux v0.3.0 — grid mode, status bar, socket IPC, tint overlays([`4bbbce2`](https://github.com/MadAppGang/claudish/commit/4bbbce21f341405009ee06baac0a66e7c3c7245d))
+
 ## [6.5.3] - 2026-04-01
 
 ### Bug Fixes
