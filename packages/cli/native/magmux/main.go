@@ -549,7 +549,17 @@ func (vt *VTParser) doCSI(w rune) {
 						vt.node.screen = vt.node.primaryScreen
 					}
 				case 2004: // Bracketed paste mode
+					wasPaste := vt.node.bracketPaste
 					vt.node.bracketPaste = set
+					if !set {
+						// Paste mode turned OFF → app started processing
+						vt.node.pasteWasOff = true
+						vt.node.inputReady = false
+					} else if set && !wasPaste && vt.node.pasteWasOff {
+						// Paste mode re-enabled after being off → app wants input
+						// This filters out the initial shell 2004h setup
+						vt.node.inputReady = true
+					}
 				}
 			}
 		}
@@ -977,6 +987,8 @@ type Pane struct {
 	gridFrozen    bool      // child exited, show overlay (grid mode)
 	startedAt     time.Time // when the pane was created
 	frozenAt      time.Time // when gridFrozen became true
+	inputReady    bool      // TUI app is waiting for user input (bracketed paste re-enabled)
+	pasteWasOff   bool      // bracketed paste was disabled at least once (filters initial setup)
 	tintColor     string    // "", "green", or "red" — background tint override
 }
 
@@ -1420,6 +1432,18 @@ func (r *Renderer) renderStatusBar(row, cols int, text string) {
 			fmt.Fprintf(&r.buf, "\x1b[0m%s\x1b[2;37m%s", barBg, txt)
 			col += len(txt)
 			continue
+		case "g": // Green text, no pill bg
+			fmt.Fprintf(&r.buf, "\x1b[0m%s\x1b[32;1m%s", barBg, txt)
+			col += len(txt)
+			continue
+		case "y": // Yellow text, no pill bg
+			fmt.Fprintf(&r.buf, "\x1b[0m%s\x1b[33;1m%s", barBg, txt)
+			col += len(txt)
+			continue
+		case "r": // Red text, no pill bg
+			fmt.Fprintf(&r.buf, "\x1b[0m%s\x1b[31;1m%s", barBg, txt)
+			col += len(txt)
+			continue
 		case "W": // White
 			pillBg = "\x1b[48;2;70;70;80m" // subtle gray pill
 			pillFg = "\x1b[97m"
@@ -1774,6 +1798,16 @@ func (m *Magmux) focusNext() {
 	}
 }
 
+// allPanesDone returns true if every pane is either frozen or inputReady
+func (m *Magmux) allPanesDone() bool {
+	for _, p := range m.allPanes {
+		if !p.gridFrozen && !p.inputReady {
+			return false
+		}
+	}
+	return len(m.allPanes) > 0
+}
+
 // allPanesFrozen returns true if every leaf pane is frozen (grid mode complete)
 func (m *Magmux) allPanesFrozen() bool {
 	for _, p := range m.allPanes {
@@ -1863,8 +1897,8 @@ func (m *Magmux) inputLoop() {
 				continue
 			}
 
-			// In grid mode, when all panes are frozen: Escape, Enter, or Ctrl-C quits
-			if m.gridMode && m.allPanesFrozen() {
+			// In grid mode, when all panes are done: Escape, Enter, or Ctrl-C quits
+			if m.gridMode && m.allPanesDone() {
 				if b == 0x1b || b == '\r' || b == '\n' || b == 0x03 { // ESC, Enter, Ctrl-C
 					m.quitOnce.Do(func() { close(m.quit) })
 					return
@@ -2195,21 +2229,28 @@ func (m *Magmux) render() {
 		}
 	}
 
-	// Grid mode: mark dead panes as frozen
+	// Grid mode: mark panes as complete (frozen or inputReady)
 	if m.gridMode {
 		for _, p := range m.allPanes {
 			p.mu.Lock()
+			// Dead pane → frozen with exit overlay
 			if p.dead && !p.gridFrozen {
 				p.gridFrozen = true
 				p.frozenAt = time.Now()
+				p.dirty = true
+			}
+			// TUI app waiting for input → tint green (task complete)
+			if p.inputReady && p.tintColor == "" {
+				p.tintColor = "green"
 				p.dirty = true
 			}
 			p.mu.Unlock()
 		}
 	}
 
-	// Auto-exit: quit when all panes frozen and -w flag set
-	if m.autoExit && m.gridMode && m.allPanesFrozen() {
+	// Auto-exit: quit when all panes done (-w flag)
+	// "done" = frozen (process exited) OR inputReady (TUI waiting for input)
+	if m.autoExit && m.gridMode && m.allPanesDone() {
 		m.quitOnce.Do(func() { close(m.quit) })
 		return
 	}

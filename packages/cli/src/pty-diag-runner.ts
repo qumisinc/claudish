@@ -380,15 +380,15 @@ function renderStatusBar(state: StatusBarState): string {
     if (lastError) parts.push(`D: ${lastError}`);
   }
 
-  // Quota: mini bar + percentage
+  // Quota: mini bar + percentage (lowercase = colored text, no pill bg)
   if (typeof quotaRemaining === "number") {
     const usedPct = Math.round((1 - quotaRemaining) * 100);
     const barWidth = 8;
     const usedCols = Math.max(usedPct > 0 ? 1 : 0, Math.round((usedPct / 100) * barWidth));
     const freeCols = barWidth - usedCols;
     const bar = "█".repeat(usedCols) + "░".repeat(freeCols);
-    const color = usedPct < 50 ? "G" : usedPct < 80 ? "Y" : "R";
-    parts.push(`${color}: ${bar} ${usedPct}% `);
+    const color = usedPct < 50 ? "g" : usedPct < 80 ? "y" : "r";
+    parts.push(`${color}: ${bar} ${usedPct}%`);
   }
 
   return parts.join("\t");
