@@ -2,6 +2,16 @@
 
 All notable changes to [Claudish](https://github.com/MadAppGang/claudish).
 
+## [6.9.1] - 2026-04-06
+
+### Documentation
+
+- update CHANGELOG.md for v6.9.0([`3075035`](https://github.com/MadAppGang/claudish/commit/3075035e28ffc425917f3ccc0680f27f9b860693))
+
+### Other Changes
+
+- bump to v6.9.1 — verify magmux npm publishing([`3384f03`](https://github.com/MadAppGang/claudish/commit/3384f034facf1da80cef0061da7ed4e2d3b5815b))
+
 ## [6.9.0] - 2026-04-06
 
 ### Documentation
