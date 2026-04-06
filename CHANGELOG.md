@@ -2,6 +2,16 @@
 
 All notable changes to [Claudish](https://github.com/MadAppGang/claudish).
 
+## [6.8.0] - 2026-04-06
+
+### Documentation
+
+- update CHANGELOG.md for v6.7.0([`57d6ae5`](https://github.com/MadAppGang/claudish/commit/57d6ae522dc11f9d3c9c08e0c78fca12817f745b))
+
+### New Features
+
+- v6.8.0 — add DeepSeek as native direct API provider([`a833000`](https://github.com/MadAppGang/claudish/commit/a833000d59d3a4ce5d610201bf967ea867dd9ead))
+
 ## [6.7.0] - 2026-04-06
 
 ### Documentation
