@@ -33,7 +33,8 @@ function formatElapsed(ms: number): string {
  * Find the magmux binary. Priority:
  * 1. Dev-built magmux (native/magmux/magmux — freshest, has latest features)
  * 2. Bundled magmux (native/magmux/magmux-<platform>-<arch>)
- * 3. magmux in PATH
+ * 3. Platform-specific npm package (@claudish/magmux-<platform>-<arch>)
+ * 4. magmux in PATH
  */
 function findMagmuxBinary(): string {
   const thisFile = fileURLToPath(import.meta.url);
@@ -42,12 +43,30 @@ function findMagmuxBinary(): string {
   const platform = process.platform;
   const arch = process.arch;
 
+  // 1. Dev-built magmux (native/magmux/magmux — freshest, has latest features)
   const builtMagmux = join(pkgRoot, "native", "magmux", "magmux");
   if (existsSync(builtMagmux)) return builtMagmux;
 
+  // 2. Bundled magmux (native/magmux/magmux-<platform>-<arch>)
   const bundledMagmux = join(pkgRoot, "native", "magmux", `magmux-${platform}-${arch}`);
   if (existsSync(bundledMagmux)) return bundledMagmux;
 
+  // 3. Platform-specific npm package (@claudish/magmux-<platform>-<arch>)
+  //    npm installs only the matching platform's optional dep
+  try {
+    const pkgName = `@claudish/magmux-${platform}-${arch}`;
+    // Walk up from this file to find node_modules
+    let searchDir = pkgRoot;
+    for (let i = 0; i < 5; i++) {
+      const candidate = join(searchDir, "node_modules", pkgName, "bin", "magmux");
+      if (existsSync(candidate)) return candidate;
+      const parent = dirname(searchDir);
+      if (parent === searchDir) break;
+      searchDir = parent;
+    }
+  } catch { /* not installed */ }
+
+  // 4. magmux in PATH
   try {
     const result = execSync("which magmux", { encoding: "utf-8" }).trim();
     if (result) return result;

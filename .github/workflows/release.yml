@@ -56,7 +56,7 @@ jobs:
         run: |
           cd packages/cli/native/magmux
           # Build with Go's arch names
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o magmux-build .
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o magmux-build .
           # Rename to Node.js platform-arch convention (amd64 → x64)
           NODE_ARCH="${{ matrix.goarch }}"
           if [ "$NODE_ARCH" = "amd64" ]; then NODE_ARCH="x64"; fi
@@ -247,6 +247,27 @@ jobs:
           echo "Magmux binaries:"
           ls -la packages/cli/native/magmux/
 
+      - name: Publish magmux platform packages
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for pkg in packages/magmux-*/; do
+            name=$(basename "$pkg")
+            platform_arch="${name#magmux-}"
+
+            # Copy the correct binary
+            mkdir -p "${pkg}bin"
+            cp "packages/cli/native/magmux/magmux-${platform_arch}" "${pkg}bin/magmux"
+            chmod +x "${pkg}bin/magmux"
+
+            # Update version
+            cd "$pkg"
+            node -e "const p=require('./package.json'); p.version='${VERSION}'; require('fs').writeFileSync('package.json', JSON.stringify(p,null,2))"
+
+            echo "Publishing @claudish/${name} v${VERSION}..."
+            npm publish --access public --provenance || echo "Failed to publish @claudish/${name} (may already exist)"
+            cd ../..
+          done
+
       - name: Update recommended models from OpenRouter
         run: |
           echo "Fetching latest model data from OpenRouter..."
@@ -262,12 +283,19 @@ jobs:
         run: |
           cd packages/cli
           # Fix files array for npm publish
+          VERSION="${GITHUB_REF#refs/tags/v}"
           node -e "
             const pkg = require('./package.json');
             delete pkg.dependencies['@claudish/core'];
-            // Use local files, not relative paths to root
-            // native/mtm/mtm-* includes platform-specific mtm binaries (terminal multiplexer)
-            pkg.files = ['dist/', 'native/magmux/magmux-*', 'AI_AGENT_GUIDE.md', 'recommended-models.json', 'skills/'];
+            pkg.files = ['dist/', 'AI_AGENT_GUIDE.md', 'recommended-models.json', 'skills/'];
+            // Sync optionalDependencies versions to release version
+            if (pkg.optionalDependencies) {
+              for (const key of Object.keys(pkg.optionalDependencies)) {
+                if (key.startsWith('@claudish/magmux-')) {
+                  pkg.optionalDependencies[key] = '${VERSION}';
+                }
+              }
+            }
             require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
           "
           echo 'Modified package.json:'

@@ -60,6 +60,12 @@
     "model-context-protocol",
     "ai"
   ],
+  "optionalDependencies": {
+    "@claudish/magmux-darwin-arm64": "6.7.0",
+    "@claudish/magmux-darwin-x64": "6.7.0",
+    "@claudish/magmux-linux-arm64": "6.7.0",
+    "@claudish/magmux-linux-x64": "6.7.0"
+  },
   "author": "Jack Rudenko <i@madappgang.com>",
   "license": "MIT",
   "repository": {
