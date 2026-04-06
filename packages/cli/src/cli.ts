@@ -48,7 +48,7 @@ export {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "6.8.0"; // Fallback version for compiled binaries
+let VERSION = "6.8.1"; // Fallback version for compiled binaries
 try {
   const packageJson = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   VERSION = packageJson.version;
@@ -341,6 +341,19 @@ export async function parseArgs(args: string[]): Promise<ClaudishConfig> {
       if (["auto", "logfile", "off"].includes(mode)) {
         config.diagMode = mode as typeof config.diagMode;
       }
+    } else if (arg === "--team" && i + 1 < args.length) {
+      const models = args[++i]
+        .split(",")
+        .map((m) => m.trim())
+        .filter(Boolean);
+      config.team = models;
+    } else if (arg === "--mode" && i + 1 < args.length) {
+      const mode = args[++i].toLowerCase();
+      if (["default", "interactive", "json"].includes(mode)) {
+        config.teamMode = mode as "default" | "interactive" | "json";
+      }
+    } else if ((arg === "-f" || arg === "--file") && i + 1 < args.length) {
+      config.inputFile = args[++i];
     } else if (arg === "--") {
       // Explicit separator: everything after -- passes directly to Claude Code.
       // This handles edge cases where a value starts with '-' (e.g. a system prompt
@@ -1661,6 +1674,8 @@ claudish - Run Claude Code with any AI model (OpenRouter, Gemini, OpenAI, MiniMa
 USAGE:
   claudish                                # Interactive mode (default, shows model selector)
   claudish [OPTIONS] <claude-args...>     # Single-shot mode (requires --model)
+  claudish --team a,b,c "prompt"          # Run models in parallel (magmux grid)
+  claudish --team a,b,c -f input.md       # Team mode with file input
 
 MODEL ROUTING:
   New syntax: provider@model[:concurrency]
@@ -1733,6 +1748,10 @@ OPTIONS:
   --models                 List ALL models (OpenRouter + OpenCode Zen + Ollama)
   --models <query>         Fuzzy search all models by name, ID, or description
   --top-models             List recommended/top programming models (curated)
+  --team <models>          Run multiple models in parallel (comma-separated)
+                           Example: --team minimax-m2.5,kimi-k2.5 "prompt"
+  --mode <mode>            Team mode: default (grid), interactive, json
+  -f, --file <path>        Read prompt from file (use with --team or single-shot)
   --probe <models...>      Show fallback chain for each model (diagnostic)
   --json                   Output in JSON format (use with --models, --top-models, --probe)
   --force-update           Force refresh model cache from OpenRouter API
