@@ -175,8 +175,6 @@ jobs:
   publish-npm:
     needs: release
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     # OIDC trusted publishing - no NPM_TOKEN needed!
     # Configure at: https://www.npmjs.com/package/claudish/access (Trusted Publishers)
 
