@@ -1,3 +1,4 @@
+import { VERSION } from "./version.js";
 import { ENV } from "./config.js";
 import type { ClaudishConfig } from "./types.js";
 import { loadModelInfo, getAvailableModels, fetchLiteLLMModels } from "./model-loader.js";
@@ -44,17 +45,8 @@ export {
   type ProviderResolution,
 } from "./providers/provider-resolver.js";
 
-// Read version from package.json (with fallback for compiled binaries)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-let VERSION = "6.10.0"; // Fallback version for compiled binaries
-try {
-  const packageJson = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
-  VERSION = packageJson.version;
-} catch {
-  // Running as compiled binary - use fallback version
-}
 
 /**
  * Get current version

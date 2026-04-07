@@ -1,35 +1,27 @@
 /**
  * Auto-update checker for Claudish
  *
- * Checks npm registry for new versions and prompts user to update.
+ * Checks npm registry for new versions and shows a notification.
  * Caches the check result to avoid checking on every run (once per day).
+ * This is notification-only — actual updates are done via `claudish update`.
  */
 
-import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir, platform, tmpdir } from "node:os";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
 
 const isWindows = platform() === "win32";
 
 const NPM_REGISTRY_URL = "https://registry.npmjs.org/claudish/latest";
 
-/**
- * Detect installation method from process.argv[1] path
- */
-function getUpdateCommand(): string {
-  const scriptPath = process.argv[1] || "";
-
-  // Bun installation
-  if (scriptPath.includes("/.bun/")) {
-    return "bun add -g claudish@latest";
-  }
-
-  // Default to npm (works for npm, nvm, and most other installations)
-  return "npm install -g claudish@latest";
-}
 const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// ANSI color codes
+const RESET = "\x1b[0m";
+const BOLD = "\x1b[1m";
+const GREEN = "\x1b[32m";
+const CYAN = "\x1b[36m";
+const DIM = "\x1b[2m";
 
 interface UpdateCache {
   lastCheck: number;
@@ -164,64 +156,21 @@ export async function fetchLatestVersion(): Promise<string | null> {
 }
 
 /**
- * Prompt user for confirmation
- */
-function promptUser(question: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stderr, // Use stderr so it doesn't interfere with JSON output
-    });
-
-    rl.question(question, (answer) => {
-      rl.close();
-      const normalized = answer.toLowerCase().trim();
-      resolve(normalized === "y" || normalized === "yes");
-    });
-  });
-}
-
-/**
- * Run update command (auto-detects npm vs bun)
- */
-function runUpdate(): boolean {
-  const command = getUpdateCommand();
-  try {
-    console.error("\n[claudish] Updating...\n");
-
-    // Use execSync with shell for cross-platform compatibility
-    // Windows needs shell to find npm.cmd
-    execSync(command, {
-      stdio: "inherit",
-      shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
-    });
-
-    console.error("\n[claudish] Update complete! Please restart claudish.\n");
-    return true;
-  } catch (error) {
-    console.error("\n[claudish] Update failed. Try manually:");
-    console.error(`  ${command}\n`);
-    return false;
-  }
-}
-
-/**
- * Check for updates and prompt user
+ * Check for updates and show notification
  *
  * Uses a cache to avoid checking npm on every run (once per 24 hours).
+ * This is notification-only — does not auto-update or prompt.
  *
  * @param currentVersion - Current installed version
  * @param options - Configuration options
- * @returns true if update was performed (caller should exit), false otherwise
  */
 export async function checkForUpdates(
   currentVersion: string,
   options: {
     quiet?: boolean;
-    skipPrompt?: boolean;
   } = {}
-): Promise<boolean> {
-  const { quiet = false, skipPrompt = false } = options;
+): Promise<void> {
+  const { quiet = false } = options;
 
   let latestVersion: string | null = null;
 
@@ -239,51 +188,19 @@ export async function checkForUpdates(
 
   if (!latestVersion) {
     // Couldn't fetch - silently continue
-    return false;
+    return;
   }
 
   // Compare versions
   if (compareVersions(latestVersion, currentVersion) <= 0) {
     // Already up to date
-    return false;
+    return;
   }
 
-  // New version available!
+  // New version available — show single-line notification
   if (!quiet) {
     console.error("");
-    console.error("━".repeat(60));
-    console.error(`  New version available: ${currentVersion} → ${latestVersion}`);
-    console.error("━".repeat(60));
+    console.error(`  ${CYAN}\u250c${RESET} ${BOLD}Update available:${RESET} ${currentVersion} ${DIM}\u2192${RESET} ${GREEN}${latestVersion}${RESET}   ${DIM}Run:${RESET} ${BOLD}${CYAN}claudish update${RESET}`);
     console.error("");
   }
-
-  if (skipPrompt) {
-    // Just notify, don't prompt
-    if (!quiet) {
-      console.error("  Update with: npm install -g claudish@latest\n");
-    }
-    return false;
-  }
-
-  // Prompt user
-  const shouldUpdate = await promptUser("  Would you like to update now? [y/N] ");
-
-  if (!shouldUpdate) {
-    if (!quiet) {
-      console.error("\n  Skipped. Update later with: npm install -g claudish@latest\n");
-    }
-    return false;
-  }
-
-  // Run update
-  const success = runUpdate();
-
-  if (success) {
-    // Clear cache so next run checks fresh
-    clearCache();
-    // Exit after successful update so user can restart with new version
-    return true;
-  }
-
-  return false;
 }

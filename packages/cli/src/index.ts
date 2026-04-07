@@ -191,10 +191,8 @@ async function runCli() {
     // Parse CLI arguments
     const cliConfig = await parseArgs(process.argv.slice(2));
 
-    // Team mode: run models in magmux grid (skip normal Claude Code path)
+    // Team mode: run models in parallel (skip normal Claude Code path)
     if (cliConfig.team && cliConfig.team.length > 0) {
-      const { runWithGrid } = await import("./team-grid.js");
-
       // Resolve prompt: --file flag, or positional args from claudeArgs
       let prompt = cliConfig.claudeArgs.join(" ");
       if (cliConfig.inputFile) {
@@ -205,14 +203,47 @@ async function runCli() {
         process.exit(1);
       }
 
-      const keep = cliConfig.teamKeep ?? false;
+      const mode = cliConfig.teamMode ?? "default";
       const sessionPath = join(process.cwd(), `.claudish-team-${Date.now()}`);
+
+      if (mode === "json") {
+        // JSON mode: run models without grid, collect JSON output to stdout
+        const { setupSession, runModels } = await import("./team-orchestrator.js");
+        setupSession(sessionPath, cliConfig.team, prompt);
+        const status = await runModels(sessionPath, {
+          timeout: 300,
+          claudeFlags: ["--json"],
+        });
+
+        // Build JSON result with model responses included
+        const result: Record<string, unknown> = { ...status, responses: {} };
+        for (const anonId of Object.keys(status.models)) {
+          const responsePath = join(sessionPath, `response-${anonId}.md`);
+          try {
+            const raw = readFileSync(responsePath, "utf-8").trim();
+            try {
+              (result.responses as Record<string, unknown>)[anonId] = JSON.parse(raw);
+            } catch {
+              (result.responses as Record<string, unknown>)[anonId] = raw;
+            }
+          } catch {
+            (result.responses as Record<string, unknown>)[anonId] = null;
+          }
+        }
+        console.log(JSON.stringify(result, null, 2));
+        process.exit(0);
+      }
+
+      // Default or interactive mode — both use magmux grid
+      const { runWithGrid } = await import("./team-grid.js");
+      const keep = cliConfig.teamKeep ?? false;
       const status = await runWithGrid(sessionPath, cliConfig.team, prompt, {
         timeout: 300,
         keep,
+        mode: mode as "default" | "interactive",
       });
 
-      // Print final status
+      // Print final status (interactive may not reach here until user quits magmux)
       const modelIds = Object.keys(status.models).sort();
       console.log(`\nTeam Status`);
       for (const id of modelIds) {

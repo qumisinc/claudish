@@ -22,6 +22,7 @@ import { join } from "node:path";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { log } from "../logger.js";
+import { VERSION } from "../version.js";
 
 const execAsync = promisify(exec);
 
@@ -176,15 +177,10 @@ export class KimiOAuth {
   }
 
   /**
-   * Get version from package.json
+   * Get version from generated version.ts
    */
   private getVersion(): string {
-    try {
-      const packageJson = JSON.parse(readFileSync(join(__dirname, "../../package.json"), "utf-8"));
-      return packageJson.version;
-    } catch {
-      return "4.0.6"; // Fallback
-    }
+    return VERSION;
   }
 
   /**

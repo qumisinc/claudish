@@ -13,8 +13,8 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { createRequire } from "node:module";
 import { loadConfig, saveConfig } from "./profile-config.js";
+import { VERSION } from "./version.js";
 import { log } from "./logger.js";
 import type { ClaudishConfig } from "./types.js";
 
@@ -178,18 +178,8 @@ export interface TelemetryReport {
 
 // ─── Version Helper ───────────────────────────────────────────────────────────
 
-/**
- * Get claudish version from packages/cli/package.json.
- * Uses createRequire for ESM compatibility. Falls back to "unknown".
- */
 function getVersion(): string {
-  try {
-    const require = createRequire(import.meta.url);
-    const pkg = require("../package.json") as { version?: string };
-    return pkg.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
+  return VERSION;
 }
 
 // ─── Detection Helpers ────────────────────────────────────────────────────────

@@ -15,8 +15,8 @@
  * Env var override: CLAUDISH_STATS=0|false|off disables all collection.
  */
 
-import { createRequire } from "node:module";
 import { loadConfig, saveConfig } from "./profile-config.js";
+import { VERSION } from "./version.js";
 import { detectRuntime, detectInstallMethod, sanitizeModelId } from "./telemetry.js";
 import { parseModelSpec } from "./providers/model-parser.js";
 import {
@@ -69,13 +69,7 @@ let envAttributes: {
 // ─── Version Helper ───────────────────────────────────────────────────────────
 
 function getVersion(): string {
-  try {
-    const require = createRequire(import.meta.url);
-    const pkg = require("../package.json") as { version?: string };
-    return pkg.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
+  return VERSION;
 }
 
 // ─── Environment Detection ────────────────────────────────────────────────────
