@@ -6,9 +6,13 @@
  * anthropic-version, plus Kimi OAuth fallback for kimi-coding.
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import type { ProviderTransport, StreamFormat } from "./types.js";
 import type { RemoteProvider } from "../../handlers/shared/remote-provider-types.js";
 import { log } from "../../logger.js";
+import { KimiOAuth } from "../../auth/kimi-oauth.js";
 
 export class AnthropicProviderTransport implements ProviderTransport {
   readonly name: string;
@@ -48,15 +52,10 @@ export class AnthropicProviderTransport implements ProviderTransport {
     // Kimi Coding: prefer API key auth, fall back to OAuth if no key provided
     if (this.provider.name === "kimi-coding" && !this.apiKey) {
       try {
-        const { existsSync, readFileSync } = await import("node:fs");
-        const { join } = await import("node:path");
-        const { homedir } = await import("node:os");
-
         const credPath = join(homedir(), ".claudish", "kimi-oauth.json");
         if (existsSync(credPath)) {
           const data = JSON.parse(readFileSync(credPath, "utf-8"));
           if (data.access_token && data.refresh_token) {
-            const { KimiOAuth } = await import("../../auth/kimi-oauth.js");
             const oauth = KimiOAuth.getInstance();
             const accessToken = await oauth.getAccessToken();
 

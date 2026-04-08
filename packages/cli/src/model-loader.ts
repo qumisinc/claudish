@@ -43,20 +43,90 @@ let _cachedModelIds: string[] | null = null;
 let _cachedRecommendedModels: RecommendedModelsJSON | null = null;
 
 /**
- * Get the path to recommended-models.json
+ * Firebase endpoint for auto-generated recommended models.
+ * Falls back to bundled JSON when unreachable.
+ */
+const FIREBASE_RECOMMENDED_URL =
+  "https://us-central1-claudish-6da10.cloudfunctions.net/queryModels?catalog=recommended";
+
+const RECOMMENDED_CACHE_PATH = join(homedir(), ".claudish", "recommended-models-cache.json");
+const RECOMMENDED_CACHE_MAX_AGE_HOURS = 12;
+
+/**
+ * Get the path to the bundled recommended-models.json (compile-time fallback)
  */
 function getRecommendedModelsPath(): string {
   return join(__dirname, "../recommended-models.json");
 }
 
 /**
- * Load the raw recommended-models.json data
+ * Fetch recommended models from Firebase and cache to disk.
+ * Called at startup to ensure the latest recommendations are available.
+ * Returns the fetched data or null on failure (callers use sync fallback).
+ */
+export async function warmRecommendedModels(): Promise<RecommendedModelsJSON | null> {
+  try {
+    const response = await fetch(FIREBASE_RECOMMENDED_URL, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as RecommendedModelsJSON;
+    if (!data.models || data.models.length === 0) return null;
+
+    // Cache to memory
+    _cachedRecommendedModels = data;
+
+    // Cache to disk
+    const cacheDir = join(homedir(), ".claudish");
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(RECOMMENDED_CACHE_PATH, JSON.stringify(data), "utf-8");
+
+    return data;
+  } catch {
+    // Silent — sync fallback will handle it
+    return null;
+  }
+}
+
+/**
+ * Load the raw recommended-models.json data.
+ *
+ * Resolution order:
+ * 1. In-memory cache (already fetched this session)
+ * 2. Disk cache (~/.claudish/recommended-models-cache.json) if fresh enough
+ * 3. Bundled recommended-models.json (compile-time fallback)
  */
 function loadRecommendedModelsJSON(): RecommendedModelsJSON {
   if (_cachedRecommendedModels) {
     return _cachedRecommendedModels;
   }
 
+  // Try disk cache (from Firebase fetch)
+  if (existsSync(RECOMMENDED_CACHE_PATH)) {
+    try {
+      const cacheData = JSON.parse(readFileSync(RECOMMENDED_CACHE_PATH, "utf-8")) as RecommendedModelsJSON;
+      // Check freshness — use cache if less than 12 hours old
+      if (cacheData.models && cacheData.models.length > 0) {
+        const generatedAt = (cacheData as any).generatedAt;
+        if (generatedAt) {
+          const ageHours = (Date.now() - new Date(generatedAt).getTime()) / (1000 * 60 * 60);
+          if (ageHours <= RECOMMENDED_CACHE_MAX_AGE_HOURS) {
+            _cachedRecommendedModels = cacheData;
+            return cacheData;
+          }
+        } else {
+          // No generatedAt field — still use it (better than bundled)
+          _cachedRecommendedModels = cacheData;
+          return cacheData;
+        }
+      }
+    } catch {
+      // Disk cache invalid — fall through to bundled
+    }
+  }
+
+  // Fall back to bundled JSON
   const jsonPath = getRecommendedModelsPath();
 
   if (!existsSync(jsonPath)) {

@@ -731,7 +731,7 @@ async function callLoadCodeAssist(
 ): Promise<LoadCodeAssistResponse> {
   const metadata: ClientMetadata = {
     pluginType: "GEMINI",
-    ideType: "IDE_UNSPECIFIED",
+    ideType: "GEMINI_CLI",
     platform: "PLATFORM_UNSPECIFIED",
     duetProject: projectId,
   };
@@ -759,7 +759,7 @@ async function callOnboardUser(
 ): Promise<LROResponse> {
   const metadata: ClientMetadata = {
     pluginType: "GEMINI",
-    ideType: "IDE_UNSPECIFIED",
+    ideType: "GEMINI_CLI",
     platform: "PLATFORM_UNSPECIFIED",
     duetProject: projectId,
   };

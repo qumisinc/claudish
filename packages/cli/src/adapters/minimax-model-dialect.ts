@@ -54,7 +54,7 @@ export class MiniMaxModelDialect extends BaseAPIFormat {
    * Defaults to 204,800 (MiniMax standard context) if not in catalog.
    */
   override getContextWindow(): number {
-    return lookupModel(this.modelId)?.contextWindow ?? 204_800;
+    return lookupModel(this.modelId)?.contextWindow ?? 0;
   }
 
   /**

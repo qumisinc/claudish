@@ -106,6 +106,18 @@ interface ModelInfo {
 // ─── Helper Functions ────────────────────────────────────────────────────────
 
 function loadRecommendedModels(): ModelInfo[] {
+  // Try Firebase-cached version first (auto-generated, more current)
+  const cachedPath = join(CLAUDISH_CACHE_DIR, "recommended-models-cache.json");
+  if (existsSync(cachedPath)) {
+    try {
+      const data = JSON.parse(readFileSync(cachedPath, "utf-8"));
+      if (data.models && data.models.length > 0) return data.models;
+    } catch {
+      // Fall through to bundled
+    }
+  }
+
+  // Fall back to bundled JSON
   if (existsSync(RECOMMENDED_MODELS_PATH)) {
     try {
       const data = JSON.parse(readFileSync(RECOMMENDED_MODELS_PATH, "utf-8"));
@@ -115,6 +127,23 @@ function loadRecommendedModels(): ModelInfo[] {
     }
   }
   return [];
+}
+
+/** Parse "$1.32/1M" → 1.32, "FREE" → 0, "N/A" → Infinity */
+function parsePriceAvg(s?: string): number {
+  if (!s || s === "N/A") return Infinity;
+  if (s === "FREE") return 0;
+  const m = s.match(/\$([\d.]+)/);
+  return m ? parseFloat(m[1]) : Infinity;
+}
+
+/** Parse "196K" → 196000, "1M" → 1000000, "1048K" → 1048000 */
+function parseCtx(s?: string): number {
+  if (!s || s === "N/A") return 0;
+  const upper = s.toUpperCase();
+  if (upper.includes("M")) return parseFloat(upper) * 1_000_000;
+  if (upper.includes("K")) return parseFloat(upper) * 1_000;
+  return parseInt(s) || 0;
 }
 
 async function loadAllModels(forceRefresh = false): Promise<any[]> {
@@ -407,13 +436,18 @@ function defineTools(sessionManager: SessionManager): ToolDefinition[] {
         const v = model.supportsVision ? "✓" : "·";
         output += `| ${model.id} | ${model.provider} | ${model.pricing?.average || "N/A"} | ${model.context || "N/A"} | ${t} | ${r} | ${v} |\n`;
       }
+      // Generate Quick Picks from loaded data (no more hardcoded drift)
       output += "\n## Quick Picks\n";
-      output += "- **Budget**: `minimax-m2.5` ($0.75/1M)\n";
-      output += "- **Large context**: `gemini-3.1-pro-preview` (1M tokens)\n";
-      output += "- **Most advanced**: `gpt-5.4` ($8.75/1M)\n";
-      output += "- **Vision + coding**: `kimi-k2.5` ($1.32/1M)\n";
-      output += "- **Agentic**: `glm-5` ($1.68/1M)\n";
-      output += "- **Multimodal**: `qwen3.5-plus-02-15` ($1.40/1M)\n";
+      const cheapest = [...models].sort((a, b) => parsePriceAvg(a.pricing?.average) - parsePriceAvg(b.pricing?.average))[0];
+      const bigCtx = [...models].sort((a, b) => parseCtx(b.context) - parseCtx(a.context))[0];
+      const priciest = [...models].sort((a, b) => parsePriceAvg(b.pricing?.average) - parsePriceAvg(a.pricing?.average))[0];
+      const vision = models.find(m => m.supportsVision);
+      const reasoning = models.find(m => m.supportsReasoning && m.id !== priciest?.id);
+      if (cheapest) output += `- **Budget**: \`${cheapest.id}\` (${cheapest.pricing?.average || "N/A"})\n`;
+      if (bigCtx && bigCtx.id !== cheapest?.id) output += `- **Large context**: \`${bigCtx.id}\` (${bigCtx.context || "N/A"} tokens)\n`;
+      if (priciest && priciest.id !== cheapest?.id) output += `- **Most advanced**: \`${priciest.id}\` (${priciest.pricing?.average || "N/A"})\n`;
+      if (vision && vision.id !== cheapest?.id && vision.id !== priciest?.id) output += `- **Vision + coding**: \`${vision.id}\` (${vision.pricing?.average || "N/A"})\n`;
+      if (reasoning && reasoning.id !== cheapest?.id) output += `- **Agentic**: \`${reasoning.id}\` (${reasoning.pricing?.average || "N/A"})\n`;
       return { content: [{ type: "text" as const, text: output }] };
     },
   });

@@ -73,8 +73,8 @@ describe("GLMModelDialect — Context Windows", () => {
     expect(new GLMModelDialect("glm-4-flash").getContextWindow()).toBe(128_000);
   });
 
-  test("unknown glm variant → 131K default (glm- catch-all)", () => {
-    expect(new GLMModelDialect("glm-99").getContextWindow()).toBe(131_072);
+  test("unknown glm variant → 0 (no catch-all)", () => {
+    expect(new GLMModelDialect("glm-99").getContextWindow()).toBe(0);
   });
 });
 
@@ -188,11 +188,11 @@ describe("Three-layer adapter — model dialect overrides format adapter", () =>
     expect(modelAdapter.supportsVision()).toBe(true);
   });
 
-  test("LiteLLMAPIFormat returns generic defaults (model adapter should override)", () => {
+  test("LiteLLMAPIFormat uses catalog lookup for context window", () => {
     const litellmAdapter = new LiteLLMAPIFormat("glm-5", "https://example.com");
 
-    // LiteLLMAPIFormat returns generic 200K — model adapter should win
-    expect(litellmAdapter.getContextWindow()).toBe(200_000);
+    // LiteLLMAPIFormat now does catalog lookup — glm-5 has 80K context
+    expect(litellmAdapter.getContextWindow()).toBe(80_000);
   });
 
   test("model dialect provides correct context window for glm-4-long via LiteLLM", () => {

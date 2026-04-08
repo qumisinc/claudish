@@ -123,7 +123,7 @@ export class AnthropicAPIFormat extends BaseAPIFormat {
     if (this.providerName === "kimi" || this.providerName === "kimi-coding") return 131_072;
     if (this.providerName === "minimax" || this.providerName === "minimax-coding") return 204_800;
 
-    return 128_000; // Default
+    return 0; // Unknown — will show N/A in status line
   }
 
   override supportsVision(): boolean {

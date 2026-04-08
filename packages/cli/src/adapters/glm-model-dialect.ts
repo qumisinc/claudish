@@ -43,7 +43,7 @@ export class GLMModelDialect extends BaseAPIFormat {
   }
 
   override getContextWindow(): number {
-    return lookupModel(this.modelId)?.contextWindow ?? 128_000;
+    return lookupModel(this.modelId)?.contextWindow ?? 0;
   }
 
   override supportsVision(): boolean {

@@ -15,6 +15,12 @@ import { randomUUID } from "node:crypto";
 import type { ProviderTransport, StreamFormat } from "./types.js";
 import { GeminiRequestQueue } from "../../handlers/shared/gemini-queue.js";
 import { log, logStderr } from "../../logger.js";
+import {
+  getValidAccessToken,
+  setupGeminiUser,
+  getGeminiTierDisplayName,
+  retrieveUserQuota,
+} from "../../auth/gemini-oauth.js";
 
 const CODE_ASSIST_BASE = "https://cloudcode-pa.googleapis.com";
 const CODE_ASSIST_ENDPOINT = `${CODE_ASSIST_BASE}/v1internal:streamGenerateContent?alt=sse`;
@@ -198,9 +204,6 @@ export class GeminiCodeAssistProviderTransport implements ProviderTransport {
    * Uses dynamic imports to avoid loading OAuth code unless needed.
    */
   async refreshAuth(): Promise<void> {
-    const { getValidAccessToken, setupGeminiUser, getGeminiTierDisplayName } = await import(
-      "../../auth/gemini-oauth.js"
-    );
     this.accessToken = await getValidAccessToken();
     const { projectId, tierId } = await setupGeminiUser(this.accessToken);
     this.projectId = projectId;
@@ -384,7 +387,7 @@ export class GeminiCodeAssistProviderTransport implements ProviderTransport {
   private async logQuotaInfo(): Promise<void> {
     if (!this.accessToken || !this.projectId) return;
     try {
-      const { retrieveUserQuota } = await import("../../auth/gemini-oauth.js");
+
       const data = await retrieveUserQuota(this.accessToken, this.projectId);
       if (!data?.buckets?.length) return;
 
@@ -417,7 +420,7 @@ export class GeminiCodeAssistProviderTransport implements ProviderTransport {
   async getQuotaRemaining(modelName: string): Promise<number | undefined> {
     if (!this.accessToken || !this.projectId) return undefined;
     try {
-      const { retrieveUserQuota } = await import("../../auth/gemini-oauth.js");
+
       const data = await retrieveUserQuota(this.accessToken, this.projectId);
       if (!data?.buckets?.length) return undefined;
       const bucket = data.buckets.find((b: any) => b.modelId === modelName);

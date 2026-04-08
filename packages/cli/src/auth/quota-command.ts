@@ -10,6 +10,12 @@
  */
 
 import { hasOAuthCredentials } from "./oauth-registry.js";
+import {
+  getValidAccessToken,
+  setupGeminiUser,
+  retrieveUserQuota,
+  getGeminiTierFullName,
+} from "./gemini-oauth.js";
 
 // ANSI
 const R = "\x1b[0m";
@@ -103,9 +109,6 @@ async function geminiQuotaHandler(): Promise<void> {
   }
 
   try {
-    const { getValidAccessToken, setupGeminiUser, retrieveUserQuota, getGeminiTierFullName } =
-      await import("./gemini-oauth.js");
-
     const accessToken = await getValidAccessToken();
     const { projectId } = await setupGeminiUser(accessToken);
     const tierName = getGeminiTierFullName();

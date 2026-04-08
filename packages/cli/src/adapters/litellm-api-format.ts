@@ -13,6 +13,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { DefaultAPIFormat } from "./base-api-format.js";
 import type { AdapterResult, ToolCall } from "./base-api-format.js";
+import { lookupModel } from "./model-catalog.js";
 import { log } from "../logger.js";
 
 /** Models needing image_url → inline base64 conversion */
@@ -127,7 +128,7 @@ export class LiteLLMAPIFormat extends DefaultAPIFormat {
   }
 
   getContextWindow(): number {
-    return 200_000; // Default, could be enhanced with model discovery
+    return lookupModel(this.modelId)?.contextWindow ?? 0;
   }
 
   /**

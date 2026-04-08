@@ -214,8 +214,9 @@ export class TokenTracker {
     try {
       const total = inputTokens + outputTokens;
       const cw = this.config.contextWindow;
+      // context_left_percent: -1 means "unknown" (no catalog entry for this model)
       const leftPct =
-        cw > 0 ? Math.max(0, Math.min(100, Math.round(((cw - total) / cw) * 100))) : 100;
+        cw > 0 ? Math.max(0, Math.min(100, Math.round(((cw - total) / cw) * 100))) : -1;
 
       const pricing = this.getPricing();
       const isFreeModel =
@@ -226,7 +227,7 @@ export class TokenTracker {
         output_tokens: outputTokens,
         total_tokens: total,
         total_cost: this.sessionTotalCost,
-        context_window: cw,
+        context_window: cw > 0 ? cw : "unknown",
         context_left_percent: leftPct,
         provider_name: this.getDisplayName(),
         updated_at: Date.now(),

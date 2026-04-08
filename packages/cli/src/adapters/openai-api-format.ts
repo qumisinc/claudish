@@ -70,7 +70,7 @@ export class OpenAIAPIFormat extends BaseAPIFormat {
   // ─── ComposedHandler integration ───────────────────────────────────
 
   override getContextWindow(): number {
-    return lookupModel(this.modelId)?.contextWindow ?? 128_000;
+    return lookupModel(this.modelId)?.contextWindow ?? 0;
   }
 
   override buildPayload(claudeRequest: any, messages: any[], tools: any[]): any {

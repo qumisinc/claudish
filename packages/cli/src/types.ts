@@ -42,6 +42,7 @@ export interface ClaudishConfig {
   // Team mode
   team?: string[]; // Model IDs for team mode (from --team flag)
   teamMode?: "default" | "interactive" | "json"; // Team execution mode
+  teamKeep?: boolean; // Keep magmux open after all panes finish (--keep)
   inputFile?: string; // File path for prompt input (-f / --file)
 }
 

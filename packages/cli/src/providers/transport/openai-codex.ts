@@ -13,6 +13,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { log } from "../../logger.js";
 import { OpenAIProviderTransport } from "./openai.js";
+import { CodexOAuth } from "../../auth/codex-oauth.js";
 
 function buildOAuthHeaders(token: string, accountId?: string): Record<string, string> {
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
@@ -46,7 +47,6 @@ export class OpenAICodexTransport extends OpenAIProviderTransport {
       // Check if token needs refresh
       const buffer = 5 * 60 * 1000;
       if (creds.expires_at && Date.now() > creds.expires_at - buffer) {
-        const { CodexOAuth } = await import("../../auth/codex-oauth.js");
         const oauth = CodexOAuth.getInstance();
         const token = await oauth.getAccessToken();
         log("[OpenAI Codex] Using refreshed OAuth token");

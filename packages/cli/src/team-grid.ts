@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import {
-  appendFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -14,17 +13,137 @@ import {
   setupSession,
   type TeamManifest,
   type TeamStatus,
-  type ModelStatus,
 } from "./team-orchestrator.js";
+import { parseModelSpec } from "./providers/model-parser.js";
+import { matchRoutingRule, buildRoutingChain } from "./providers/routing-rules.js";
+import { getFallbackChain } from "./providers/auto-route.js";
+import { loadConfig, loadLocalConfig } from "./profile-config.js";
 
-// ─── Elapsed Time Formatting ──────────────────────────────────────────────────
+// ─── Routing Resolution ──────────────────────────────────────────────────────
 
-function formatElapsed(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const rem = s % 60;
-  return `${m}m ${rem}s`;
+interface RouteInfo {
+  chain: string[];       // e.g. ["LiteLLM", "OpenRouter"]
+  source: string;        // "direct", "project routing", "user routing", "auto"
+  sourceDetail?: string; // matched pattern for custom rules
+}
+
+function resolveRouteInfo(modelId: string): RouteInfo {
+  const parsed = parseModelSpec(modelId);
+
+  // Explicit provider prefix (e.g. or@model) — no fallback chain
+  if (parsed.isExplicitProvider) {
+    return { chain: [parsed.provider], source: "direct" };
+  }
+
+  // Check local (project-scope) routing rules first
+  const local = loadLocalConfig();
+  if (local?.routing && Object.keys(local.routing).length > 0) {
+    const matched = matchRoutingRule(parsed.model, local.routing);
+    if (matched) {
+      const routes = buildRoutingChain(matched, parsed.model);
+      const pattern = Object.keys(local.routing).find((k) => {
+        if (k === parsed.model) return true;
+        if (k.includes("*")) {
+          const star = k.indexOf("*");
+          return parsed.model.startsWith(k.slice(0, star)) && parsed.model.endsWith(k.slice(star + 1));
+        }
+        return false;
+      });
+      return {
+        chain: routes.map((r) => r.displayName),
+        source: "project routing",
+        sourceDetail: pattern,
+      };
+    }
+  }
+
+  // Check global (user-scope) routing rules
+  const global_ = loadConfig();
+  if (global_.routing && Object.keys(global_.routing).length > 0) {
+    const matched = matchRoutingRule(parsed.model, global_.routing);
+    if (matched) {
+      const routes = buildRoutingChain(matched, parsed.model);
+      const pattern = Object.keys(global_.routing).find((k) => {
+        if (k === parsed.model) return true;
+        if (k.includes("*")) {
+          const star = k.indexOf("*");
+          return parsed.model.startsWith(k.slice(0, star)) && parsed.model.endsWith(k.slice(star + 1));
+        }
+        return false;
+      });
+      return {
+        chain: routes.map((r) => r.displayName),
+        source: "user routing",
+        sourceDetail: pattern,
+      };
+    }
+  }
+
+  // Default auto-routing
+  const routes = getFallbackChain(parsed.model, parsed.provider);
+  return {
+    chain: routes.map((r) => r.displayName),
+    source: "auto",
+  };
+}
+
+/**
+ * Build shell commands for the pane header.
+ * Layout:
+ *   ┌──────────────────────────────────────┐
+ *   │  ██ model-name ██                    │  (white on colored bg)
+ *   │  route: LiteLLM → OpenRouter (auto)  │  (dim)
+ *   │  ──────────────────────────────────── │  (dim line)
+ *   │  The full prompt text, word-wrapped   │  (normal)
+ *   │  across multiple lines if needed...   │
+ *   │  ──────────────────────────────────── │  (dim line)
+ *   └──────────────────────────────────────┘
+ */
+function buildPaneHeader(model: string, prompt: string): string {
+  const route = resolveRouteInfo(model);
+
+  // Shell-escape single quotes in model name and route strings
+  const esc = (s: string) => s.replace(/'/g, "'\\''");
+
+  // Color palette for model name background (rotate by hash)
+  const bgColors = [
+    "48;2;40;90;180",   // blue
+    "48;2;140;60;160",  // purple
+    "48;2;30;130;100",  // teal
+    "48;2;160;80;40",   // orange
+    "48;2;60;120;60",   // green
+    "48;2;160;50;70",   // red
+  ];
+  let hash = 0;
+  for (let i = 0; i < model.length; i++) hash = ((hash << 5) - hash + model.charCodeAt(i)) | 0;
+  const bg = bgColors[Math.abs(hash) % bgColors.length];
+
+  // Route chain string: "LiteLLM → OpenRouter"
+  const chainStr = route.chain.join(" → ");
+  const sourceLabel = route.sourceDetail
+    ? `${route.source}: ${route.sourceDetail}`
+    : route.source;
+
+  const lines: string[] = [];
+
+  // Line 1: model name with colored background, padded
+  lines.push(`printf '\\033[1;97;${bg}m  %s  \\033[0m\\n' '${esc(model)}';`);
+
+  // Line 2: route chain in dim with arrow symbols
+  lines.push(`printf '\\033[2m  route: ${esc(chainStr)}  (${esc(sourceLabel)})\\033[0m\\n' ;`);
+
+  // Line 3: thin separator
+  lines.push(`printf '\\033[2m  %s\\033[0m\\n' '────────────────────────────────────────';`);
+
+  // Lines 4+: prompt text, word-wrapped via fold
+  // Replace newlines with \n escape for printf %b (gridfile must be single-line)
+  const promptForShell = esc(prompt).replace(/\n/g, "\\n");
+  lines.push(`printf '%b\\n' '${promptForShell}' | fold -s -w 78 | sed 's/^/  /';`);
+
+  // Final separator
+  lines.push(`printf '\\033[2m  %s\\033[0m\\n\\n' '────────────────────────────────────────';`);
+
+  return lines.join(" ");
 }
 
 // ─── Multiplexer Binary Detection ────────────────────────────────────────────
@@ -79,169 +198,32 @@ function findMagmuxBinary(): string {
   );
 }
 
-// ─── Status Bar Rendering ─────────────────────────────────────────────────────
-
-interface GridStatusCounts {
-  done: number;
-  running: number;
-  failed: number;
-  total: number;
-  elapsedMs: number;
-  allDone: boolean;
-}
-
 /**
- * Render the aggregate team status bar in magmux's tab-separated pill format.
- * Colors: M=magenta, C=cyan, G=green, R=red, D=dim, W=white
+ * Read exit-code files and update status.json (called once after magmux exits).
  */
-function renderGridStatusBar(counts: GridStatusCounts): string {
-  const elapsed = formatElapsed(counts.elapsedMs);
-  const { done, running, failed, total, allDone } = counts;
-
-  if (allDone) {
-    if (failed > 0) {
-      return [
-        "C: claudish team",
-        `G: ${done} done`,
-        `R: ${failed} failed`,
-        `D: ${elapsed}`,
-        "R: \u2717 issues",
-        "D: ctrl-g q to quit",
-      ].join("\t");
-    }
-    return [
-      "C: claudish team",
-      `G: ${total} done`,
-      `D: ${elapsed}`,
-      "G: \u2713 complete",
-      "D: ctrl-g q to quit",
-    ].join("\t");
-  }
-
-  return [
-    "C: claudish team",
-    `G: ${done} done`,
-    `C: ${running} running`,
-    `R: ${failed} failed`,
-    `D: ${elapsed}`,
-  ].join("\t");
-}
-
-// ─── Status Polling ───────────────────────────────────────────────────────────
-
-interface PollState {
-  statusCache: TeamStatus;
-  statusPath: string;
-  sessionPath: string;
-  anonIds: string[];
-  startTime: number;
-  timeoutMs: number;
-  statusbarPath: string;
-  completedAtMs: number | null; // frozen elapsed time when all done
-  interactive: boolean;
-}
-
-/**
- * Check all model exit-code marker files and update status.json + statusbar.
- * Returns true when all models have reached a terminal state.
- */
-function pollStatus(state: PollState): boolean {
-  const { statusCache, statusPath, sessionPath, anonIds, startTime, timeoutMs, statusbarPath } =
-    state;
-
-  const elapsedMs = Date.now() - startTime;
-  let changed = false;
-
-  let done = 0;
-  let running = 0;
-  let failed = 0;
+function finalizeStatus(statusPath: string, sessionPath: string, anonIds: string[]): void {
+  const statusCache: TeamStatus = JSON.parse(readFileSync(statusPath, "utf-8"));
 
   for (const anonId of anonIds) {
     const current = statusCache.models[anonId];
-
-    // Already terminal — skip
-    if (
-      current.state === "COMPLETED" ||
-      current.state === "FAILED" ||
-      current.state === "TIMEOUT"
-    ) {
-      if (current.state === "COMPLETED") done++;
-      else failed++;
-      continue;
-    }
+    if (current.state === "COMPLETED" || current.state === "FAILED") continue;
 
     const exitCodePath = join(sessionPath, "work", anonId, ".exit-code");
-
     if (existsSync(exitCodePath)) {
-      const codeStr = readFileSync(exitCodePath, "utf-8").trim();
-      const code = parseInt(codeStr, 10);
-      const isSuccess = code === 0;
-
-      const newState: ModelStatus = {
+      const code = parseInt(readFileSync(exitCodePath, "utf-8").trim(), 10);
+      statusCache.models[anonId] = {
         ...current,
-        state: isSuccess ? "COMPLETED" : "FAILED",
+        state: code === 0 ? "COMPLETED" : "FAILED",
         exitCode: code,
-        startedAt: current.startedAt ?? new Date().toISOString(),
+        startedAt: current.startedAt ?? statusCache.startedAt,
         completedAt: new Date().toISOString(),
-        outputSize: 0,
       };
-      statusCache.models[anonId] = newState;
-      changed = true;
-
-      if (isSuccess) done++;
-      else failed++;
     } else {
-      // Check for timeout (disabled in interactive mode)
-      if (!state.interactive && elapsedMs > timeoutMs) {
-        const newState: ModelStatus = {
-          ...current,
-          state: "TIMEOUT",
-          startedAt: current.startedAt ?? new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-          outputSize: 0,
-        };
-        statusCache.models[anonId] = newState;
-        changed = true;
-        failed++;
-      } else {
-        // Mark as RUNNING after first second (panes launch immediately)
-        if (current.state === "PENDING" && elapsedMs > 1000) {
-          statusCache.models[anonId] = {
-            ...current,
-            state: "RUNNING",
-            startedAt: current.startedAt ?? new Date().toISOString(),
-          };
-          changed = true;
-        }
-        running++;
-      }
+      statusCache.models[anonId] = { ...current, state: "TIMEOUT" };
     }
   }
 
-  if (changed) {
-    writeFileSync(statusPath, JSON.stringify(statusCache, null, 2), "utf-8");
-  }
-
-  const total = anonIds.length;
-  const allDone = done + failed >= total;
-
-  // Freeze elapsed time when all models complete
-  if (allDone && !state.completedAtMs) {
-    state.completedAtMs = elapsedMs;
-  }
-
-  const counts: GridStatusCounts = {
-    done,
-    running,
-    failed,
-    total,
-    elapsedMs: state.completedAtMs ?? elapsedMs,
-    allDone,
-  };
-
-  appendFileSync(statusbarPath, renderGridStatusBar(counts) + "\n");
-
-  return allDone;
+  writeFileSync(statusPath, JSON.stringify(statusCache, null, 2), "utf-8");
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -261,10 +243,10 @@ export async function runWithGrid(
   sessionPath: string,
   models: string[],
   input: string,
-  opts?: { timeout?: number; interactive?: boolean }
+  opts?: { timeout?: number; keep?: boolean; mode?: "default" | "interactive" }
 ): Promise<TeamStatus> {
-  const timeoutMs = (opts?.timeout ?? 300) * 1000;
-  const interactive = opts?.interactive ?? false;
+  const mode = opts?.mode ?? "default";
+  const keep = opts?.keep ?? false;
 
   // 1. Set up session directory (manifest.json, status.json, work dirs, input.md)
   const manifest: TeamManifest = setupSession(sessionPath, models, input);
@@ -287,24 +269,75 @@ export async function runWithGrid(
     .replace(/'/g, "'\\''")
     .replace(/\n/g, " ");  // Flatten newlines — gridfile is one command per line
 
+  // Shell function: count .exit-code files, derive done/running/failed, send status IPC.
+  // magmux handles {"cmd":"status","text":"..."} and renders it directly — no file needed.
+  const totalPanes = Object.keys(manifest.models).length;
+  const workDir = join(sessionPath, "work");
+  const statusFunc = [
+    `_update_bar() {`,
+    `_d=0; _f=0;`,
+    `for _ecf in $(find ${workDir} -name .exit-code 2>/dev/null); do`,
+    `_c=$(cat "$_ecf" 2>/dev/null);`,
+    `if [ "$_c" = "0" ]; then _d=$((_d+1)); else _f=$((_f+1)); fi;`,
+    `done;`,
+    `_r=$((${totalPanes}-_d-_f));`,
+    `_e=$SECONDS;`,
+    `if [ $_e -ge 60 ]; then _ts="$((_e/60))m $((_e%60))s"; else _ts="\${_e}s"; fi;`,
+    `if [ $_r -eq 0 ] && [ $_f -eq 0 ]; then`,
+    `_t="C: claudish team\tG: ${totalPanes} done\tG: complete\tD: \${_ts}\tD: ctrl-g q to quit";`,
+    `elif [ $_r -eq 0 ] && [ $_f -gt 0 ]; then`,
+    `_t="C: claudish team\tG: \${_d} done\tR: \${_f} failed\tD: \${_ts}\tD: ctrl-g q to quit";`,
+    `else`,
+    `_t="C: claudish team\tG: \${_d} done\tC: \${_r} running\tR: \${_f} failed\tD: \${_ts}";`,
+    `fi;`,
+    `_j=$(printf '%s' "$_t" | sed 's/\t/\\\\t/g');`,
+    `printf '{\"cmd\":\"status\",\"text\":\"%s\"}' "$_j" | nc -U "$MAGMUX_SOCK" -w 1 2>/dev/null;`,
+    `};`,
+  ].join(" ");
+
+  // Read raw prompt (preserving newlines) for the pane header display
+  const rawPrompt = readFileSync(join(sessionPath, "input.md"), "utf-8");
+
   const gridLines = Object.entries(manifest.models).map(([anonId]) => {
     const errorLog = join(sessionPath, "errors", `${anonId}.log`);
     const exitCodeFile = join(sessionPath, "work", anonId, ".exit-code");
     const model = manifest.models[anonId].model;
     const paneIndex = Object.keys(manifest.models).indexOf(anonId);
 
-    if (interactive) {
-      // Interactive mode: full claudish TUI session per pane.
-      // magmux detects completion natively via bracketed paste signal (inputReady).
-      // No timeout — pane stays interactive for continued use.
-      return `claudish --model ${model} --dangerously-skip-permissions '${prompt}'`;
+    if (mode === "interactive") {
+      // Interactive mode: full Claude Code TUI sessions.
+      // -i forces interactive (TUI) mode even with a prompt argument.
+      // --dangerously-skip-permissions skips the consent prompt.
+      // Include _update_bar + IPC tint so status bar and pane tints work.
+      return [
+        `${statusFunc}`,
+        `if [ -n "$MAGMUX_SOCK" ]; then _update_bar; fi;`,
+        `claudish --model ${model} -i --dangerously-skip-permissions '${prompt}' 2>${errorLog};`,
+        `_ec=$?; echo $_ec > ${exitCodeFile};`,
+        `if [ -n "$MAGMUX_SOCK" ]; then`,
+        `  _update_bar;`,
+        `  if [ $_ec -eq 0 ]; then`,
+        `    echo '{"cmd":"tint","pane":${paneIndex},"color":"green"}' | nc -U "$MAGMUX_SOCK" -w 1 2>/dev/null;`,
+        `    echo '{"cmd":"overlay","pane":${paneIndex},"text":"DONE","color":"green"}' | nc -U "$MAGMUX_SOCK" -w 1 2>/dev/null;`,
+        `  else`,
+        `    echo '{"cmd":"tint","pane":${paneIndex},"color":"red"}' | nc -U "$MAGMUX_SOCK" -w 1 2>/dev/null;`,
+        `    echo '{"cmd":"overlay","pane":${paneIndex},"text":"FAIL","color":"red"}' | nc -U "$MAGMUX_SOCK" -w 1 2>/dev/null;`,
+        `  fi;`,
+        `fi`,
+      ].join(" ");
     }
 
-    // Default mode: claudish print mode with IPC tint/overlay on completion.
+    // Default mode: header + quiet output + IPC updates + sleep to keep pane alive
+    const header = buildPaneHeader(model, rawPrompt);
+
     return [
-      `claudish --model ${model} -y -v '${prompt}' 2>${errorLog};`,
+      `${statusFunc}`,
+      `if [ -n "$MAGMUX_SOCK" ]; then _update_bar; fi;`,
+      `${header}`,
+      `claudish --model ${model} -y --quiet '${prompt}' 2>${errorLog};`,
       `_ec=$?; echo $_ec > ${exitCodeFile};`,
       `if [ -n "$MAGMUX_SOCK" ]; then`,
+      `  _update_bar;`,
       `  if [ $_ec -eq 0 ]; then`,
       `    echo '{"cmd":"tint","pane":${paneIndex},"color":"green"}' | nc -U "$MAGMUX_SOCK" -w 1 2>/dev/null;`,
       `    echo '{"cmd":"overlay","pane":${paneIndex},"text":"DONE","color":"green"}' | nc -U "$MAGMUX_SOCK" -w 1 2>/dev/null;`,
@@ -321,63 +354,26 @@ export async function runWithGrid(
   // 4. Find magmux binary
   const magmuxPath = findMagmuxBinary();
 
-  // 5. Set up status bar file path
-  const statusbarPath = join(sessionPath, "statusbar.txt");
+  // 5. Spawn magmux — status bar updated by panes via IPC (no file needed)
   const statusPath = join(sessionPath, "status.json");
-  const statusCache: TeamStatus = JSON.parse(readFileSync(statusPath, "utf-8"));
   const anonIds = Object.keys(manifest.models);
-  const startTime = Date.now();
-
-  // Write initial status bar line before multiplexer starts
-  appendFileSync(
-    statusbarPath,
-    renderGridStatusBar({
-      done: 0,
-      running: 0,
-      failed: 0,
-      total: anonIds.length,
-      elapsedMs: 0,
-      allDone: false,
-    }) + "\n"
-  );
-
-  // 6. Start polling interval (500ms)
-  const pollState: PollState = {
-    statusCache,
-    statusPath,
-    sessionPath,
-    anonIds,
-    startTime,
-    timeoutMs,
-    statusbarPath,
-    completedAtMs: null,
-    interactive,
-  };
-
-  const pollInterval = setInterval(() => {
-    pollStatus(pollState);
-  }, 500);
-
-  // 7. Spawn magmux with grid mode
-  const spawnArgs = ["-g", gridfilePath, "-S", statusbarPath];
-  if (!interactive) {
-    spawnArgs.push("-w"); // auto-exit when all panes complete
+  const spawnArgs = ["-g", gridfilePath];
+  if (!keep && mode === "default") {
+    spawnArgs.push("-w"); // auto-exit when all panes complete (default mode only)
   }
   const proc = spawn(magmuxPath, spawnArgs, {
     stdio: "inherit",
     env: { ...process.env },
   });
 
-  // 8. Wait for multiplexer to exit
+  // 6. Wait for multiplexer to exit
   await new Promise<void>((resolve) => {
     proc.on("exit", () => resolve());
     proc.on("error", () => resolve());
   });
 
-  // 9. Clear polling interval and do one final poll
-  clearInterval(pollInterval);
-  pollStatus(pollState);
+  // 7. Final status.json update from exit-code files
+  finalizeStatus(statusPath, sessionPath, anonIds);
 
-  // 10. Return final status
   return JSON.parse(readFileSync(statusPath, "utf-8")) as TeamStatus;
 }

@@ -140,7 +140,7 @@ export class GrokModelDialect extends BaseAPIFormat {
   }
 
   override getContextWindow(): number {
-    return lookupModel(this.modelId)?.contextWindow ?? 131_072;
+    return lookupModel(this.modelId)?.contextWindow ?? 0;
   }
 
   /**

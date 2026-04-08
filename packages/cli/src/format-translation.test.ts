@@ -551,10 +551,10 @@ describe("Model Adapter Quirks", () => {
     expect(request.temperature).toBe(0.7);
   });
 
-  test("MiniMaxModelDialect: context window is 204_800", async () => {
+  test("MiniMaxModelDialect: unknown minimax model → context window 0", async () => {
     const { MiniMaxModelDialect } = await import("./adapters/minimax-model-dialect.js");
     const adapter = new MiniMaxModelDialect("minimax-m2.5");
-    expect(adapter.getContextWindow()).toBe(204_800);
+    expect(adapter.getContextWindow()).toBe(0);
   });
 
   test("MiniMaxModelDialect: supportsVision returns false", async () => {

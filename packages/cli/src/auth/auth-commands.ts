@@ -10,22 +10,20 @@
 
 import { select } from "@inquirer/prompts";
 import { hasOAuthCredentials } from "./oauth-registry.js";
+import { GeminiOAuth } from "./gemini-oauth.js";
+import { KimiOAuth } from "./kimi-oauth.js";
+import { CodexOAuth } from "./codex-oauth.js";
 
-/**
- * Metadata for an OAuth-capable provider.
- */
+interface OAuthInstance {
+  login(): Promise<void>;
+  logout(): Promise<void>;
+}
+
 interface OAuthProvider {
-  /** Canonical name used on the CLI (e.g. "gemini", "kimi") */
   name: string;
-  /** Pretty display name */
   displayName: string;
-  /** claudish model prefix(es) */
   prefix: string;
-  /** Dynamic import path for the OAuth class (relative to this file) */
-  module: string;
-  /** Exported class name inside the module */
-  className: string;
-  /** Keys in OAUTH_PROVIDERS that share this credential file */
+  getInstance: () => OAuthInstance;
   registryKeys: string[];
 }
 
@@ -34,24 +32,21 @@ const AUTH_PROVIDERS: OAuthProvider[] = [
     name: "gemini",
     displayName: "Gemini Code Assist",
     prefix: "go@",
-    module: "./gemini-oauth.js",
-    className: "GeminiOAuth",
+    getInstance: () => GeminiOAuth.getInstance(),
     registryKeys: ["google", "gemini-codeassist"],
   },
   {
     name: "kimi",
     displayName: "Kimi / Moonshot AI",
     prefix: "kc@, kimi@",
-    module: "./kimi-oauth.js",
-    className: "KimiOAuth",
+    getInstance: () => KimiOAuth.getInstance(),
     registryKeys: ["kimi", "kimi-coding"],
   },
   {
     name: "codex",
     displayName: "OpenAI Codex (ChatGPT Plus/Pro)",
     prefix: "cx@",
-    module: "./codex-oauth.js",
-    className: "CodexOAuth",
+    getInstance: () => CodexOAuth.getInstance(),
     registryKeys: ["openai-codex"],
   },
 ];
@@ -95,8 +90,7 @@ export async function loginCommand(providerArg?: string): Promise<void> {
   }
 
   try {
-    const mod = await import(provider.module);
-    const oauth = mod[provider.className].getInstance();
+    const oauth = provider.getInstance();
     await oauth.login();
     console.log(`\n✅ ${provider.displayName} OAuth login successful!`);
     console.log(`You can now use: claudish --model ${provider.prefix.split(",")[0].trim()}<model>`);
@@ -120,8 +114,7 @@ export async function logoutCommand(providerArg?: string): Promise<void> {
   }
 
   try {
-    const mod = await import(provider.module);
-    const oauth = mod[provider.className].getInstance();
+    const oauth = provider.getInstance();
     await oauth.logout();
     console.log(`✅ ${provider.displayName} OAuth credentials cleared.`);
     process.exit(0);

@@ -7,10 +7,10 @@ import { lookupModel, DEFAULT_CONTEXT_WINDOW, DEFAULT_SUPPORTS_VISION } from "./
 
 describe("lookupModel", () => {
   describe("MiniMax models", () => {
-    test("MiniMax-M2.7 → contextWindow: 204_800, supportsVision: false", () => {
+    test("MiniMax-M2.7 → catch-all with contextWindow: 0 (unknown), supportsVision: false", () => {
       const entry = lookupModel("MiniMax-M2.7");
       expect(entry).toBeDefined();
-      expect(entry!.contextWindow).toBe(204_800);
+      expect(entry!.contextWindow).toBe(0);
       expect(entry!.supportsVision).toBe(false);
     });
 
@@ -89,11 +89,9 @@ describe("lookupModel", () => {
       expect(entry!.contextWindow).toBe(1_000_000);
     });
 
-    test("unknown glm variant falls through to glm- catch-all", () => {
+    test("unknown glm variant returns undefined (no catch-all)", () => {
       const entry = lookupModel("glm-99");
-      expect(entry).toBeDefined();
-      expect(entry!.contextWindow).toBe(131_072);
-      expect(entry!.supportsVision).toBe(false);
+      expect(entry).toBeUndefined();
     });
   });
 
@@ -116,10 +114,9 @@ describe("lookupModel", () => {
       expect(entry!.contextWindow).toBe(131_000);
     });
 
-    test("kimi catch-all → contextWindow: 131_072", () => {
+    test("bare 'kimi' returns undefined (no catch-all)", () => {
       const entry = lookupModel("kimi");
-      expect(entry).toBeDefined();
-      expect(entry!.contextWindow).toBe(131_072);
+      expect(entry).toBeUndefined();
     });
   });
 
@@ -229,8 +226,8 @@ describe("lookupModel", () => {
   });
 
   describe("Constants", () => {
-    test("DEFAULT_CONTEXT_WINDOW is 200_000", () => {
-      expect(DEFAULT_CONTEXT_WINDOW).toBe(200_000);
+    test("DEFAULT_CONTEXT_WINDOW is 0 (unknown)", () => {
+      expect(DEFAULT_CONTEXT_WINDOW).toBe(0);
     });
 
     test("DEFAULT_SUPPORTS_VISION is true", () => {

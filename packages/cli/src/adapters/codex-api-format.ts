@@ -13,6 +13,7 @@
 
 import { BaseAPIFormat, type AdapterResult, matchesModelFamily } from "./base-api-format.js";
 import type { StreamFormat } from "../providers/transport/types.js";
+import { lookupModel } from "./model-catalog.js";
 
 export class CodexAPIFormat extends BaseAPIFormat {
   constructor(modelId: string) {
@@ -40,8 +41,7 @@ export class CodexAPIFormat extends BaseAPIFormat {
   }
 
   override getContextWindow(): number {
-    // Codex models: use a safe default
-    return 200_000;
+    return lookupModel(this.modelId)?.contextWindow ?? 0;
   }
 
   override buildPayload(claudeRequest: any, messages: any[], tools: any[]): any {

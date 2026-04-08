@@ -61,7 +61,7 @@ export class OpenRouterProviderTransport implements ProviderTransport {
   getContextWindow(): number {
     const models = this.modelId ? getCachedOpenRouterModels() : null;
     const model = models?.find((m: any) => m.id === this.modelId);
-    return model?.context_length || model?.top_provider?.context_length || 200_000;
+    return model?.context_length || model?.top_provider?.context_length || 0;
   }
 }
 

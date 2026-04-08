@@ -36,7 +36,6 @@ export const MODEL_CATALOG: ModelEntry[] = [
   { pattern: "grok-4", contextWindow: 256_000 },
   { pattern: "grok-3", contextWindow: 131_072 },
   { pattern: "grok-2", contextWindow: 131_072 },
-  { pattern: "grok", contextWindow: 131_072 },
 
   // ── GLM ─────────────────────────────────────────────
   { pattern: "glm-5-turbo", contextWindow: 202_752 },
@@ -57,14 +56,13 @@ export const MODEL_CATALOG: ModelEntry[] = [
   { pattern: "glm-4-32b", contextWindow: 128_000 },
   { pattern: "glm-4", contextWindow: 128_000 },
   { pattern: "glm-3-turbo", contextWindow: 128_000 },
-  { pattern: "glm-", contextWindow: 131_072, supportsVision: false },
 
   // ── MiniMax ─────────────────────────────────────────
   { pattern: "minimax-01", contextWindow: 1_000_000, supportsVision: false },
   { pattern: "minimax-m1", contextWindow: 1_000_000, supportsVision: false },
   {
     pattern: "minimax",
-    contextWindow: 204_800,
+    contextWindow: 0,
     supportsVision: false,
     temperatureRange: { min: 0.01, max: 1.0 },
   },
@@ -83,11 +81,20 @@ export const MODEL_CATALOG: ModelEntry[] = [
   { pattern: "kimi-k2.5", contextWindow: 262_144 },
   { pattern: "kimi-k2-5", contextWindow: 262_144 },
   { pattern: "kimi-k2", contextWindow: 131_000 },
-  { pattern: "kimi", contextWindow: 131_072 },
+
+  // ── Qwen ────────────────────────────────────────────
+  { pattern: "qwen3.6", contextWindow: 1_048_576 },
+  { pattern: "qwen3-6", contextWindow: 1_048_576 },
+  { pattern: "qwen3.5", contextWindow: 262_144 },
+  { pattern: "qwen3-5", contextWindow: 262_144 },
+  { pattern: "qwen3-coder", contextWindow: 262_144 },
+  { pattern: "qwen3", contextWindow: 131_072 },
+  { pattern: "qwen2.5", contextWindow: 131_072 },
+  { pattern: "qwen2-5", contextWindow: 131_072 },
 
   // ── Xiaomi/MiMo ─────────────────────────────────────
-  { pattern: "xiaomi", contextWindow: 200_000, toolNameLimit: 64 },
-  { pattern: "mimo", contextWindow: 200_000, toolNameLimit: 64 },
+  { pattern: "xiaomi", contextWindow: 0, toolNameLimit: 64 },
+  { pattern: "mimo", contextWindow: 0, toolNameLimit: 64 },
 ];
 
 /**
@@ -100,8 +107,10 @@ export const MODEL_CATALOG: ModelEntry[] = [
  */
 export function lookupModel(modelId: string): ModelEntry | undefined {
   const lower = modelId.toLowerCase();
-  // Also handle vendor-prefixed IDs like "x-ai/grok-beta" — check after last "/"
-  const unprefixed = lower.includes("/") ? lower.substring(lower.lastIndexOf("/") + 1) : lower;
+  // Handle vendor-prefixed IDs like "x-ai/grok-beta" or provider@model like "zen@qwen3.6-plus-free"
+  let unprefixed = lower;
+  if (lower.includes("@")) unprefixed = lower.substring(lower.indexOf("@") + 1);
+  else if (lower.includes("/")) unprefixed = lower.substring(lower.lastIndexOf("/") + 1);
 
   for (const entry of MODEL_CATALOG) {
     if (unprefixed.includes(entry.pattern) || lower.includes(entry.pattern)) {
@@ -111,8 +120,8 @@ export function lookupModel(modelId: string): ModelEntry | undefined {
   return undefined;
 }
 
-/** Default context window when no catalog match */
-export const DEFAULT_CONTEXT_WINDOW = 200_000;
+/** Default context window when no catalog match (0 = unknown, shows N/A in status line) */
+export const DEFAULT_CONTEXT_WINDOW = 0;
 
 /** Default vision support when no catalog match */
 export const DEFAULT_SUPPORTS_VISION = true;
