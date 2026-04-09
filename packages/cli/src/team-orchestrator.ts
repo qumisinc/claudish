@@ -5,7 +5,6 @@ import {
   readFileSync,
   existsSync,
   readdirSync,
-  statSync,
   createWriteStream,
 } from "node:fs";
 import { join, resolve } from "node:path";
@@ -114,6 +113,14 @@ function isSentinelModel(model: string): boolean {
 export function setupSession(sessionPath: string, models: string[], input?: string): TeamManifest {
   if (models.length === 0) {
     throw new Error("At least one model is required");
+  }
+
+  // Reject re-use of existing session directory to prevent overwriting results
+  if (existsSync(join(sessionPath, "manifest.json"))) {
+    throw new Error(
+      `Session already exists at ${sessionPath}. ` +
+      `Use a new directory path or delete the existing session first.`
+    );
   }
 
   // Reject sentinel model names that should be handled by the calling agent
@@ -241,6 +248,10 @@ export async function runModels(
       shell: false,
     });
 
+    // Count bytes flowing through stdout for accurate outputSize tracking
+    let byteCount = 0;
+    proc.stdout?.on("data", (chunk: Buffer) => { byteCount += chunk.length; });
+
     // Stream stdout to disk via pipe — no memory buffering
     const outputStream = createWriteStream(outputPath);
     proc.stdout?.pipe(outputStream);
@@ -261,14 +272,16 @@ export async function runModels(
 
       const finish = () => {
         if (resolved) return;
+        // Don't overwrite TIMEOUT state — timeout handler may have fired
+        // between proc "exit" and outputStream "close" events
+        if (statusCache.models[anonId].state === "TIMEOUT") {
+          resolved = true;
+          resolve();
+          return;
+        }
         resolved = true;
 
-        let outputSize = 0;
-        try {
-          outputSize = statSync(outputPath).size;
-        } catch {
-          // file may not exist if process produced no output
-        }
+        const outputSize = byteCount;
 
         updateModelStatus(anonId, {
           state: exitCode === 0 ? "COMPLETED" : "FAILED",
