@@ -250,11 +250,12 @@ export class GeminiAPIFormat extends BaseAPIFormat {
         : claudeRequest.system;
       systemContent = filterIdentity(systemContent);
 
-      // Gemini-specific reasoning suppression
-      systemContent += `\n\nCRITICAL INSTRUCTION FOR OUTPUT FORMAT:
-1. Keep ALL internal reasoning INTERNAL. Never output your thought process as visible text.
-2. Do NOT start responses with phrases like "Wait, I'm...", "Let me think...", "Okay, so..."
-3. Only output: final responses, tool calls, and code. Nothing else.`;
+      // Gemini-specific behavioral guidance
+      systemContent += `\n\nCRITICAL INSTRUCTIONS:
+1. Keep ALL internal reasoning in thinking blocks. Never output your thought process as visible text.
+2. When a tool call fails (returns an error), treat it as a failure — do not interpret error messages as successful output. Retry, try an alternative approach, or report the error to the user.
+3. Execute tool calls sequentially when they depend on each other. Do not batch independent tool calls if any might fail.
+4. Only output: final responses, tool calls, and code. Nothing else.`;
 
       payload.systemInstruction = { parts: [{ text: systemContent }] };
     }
