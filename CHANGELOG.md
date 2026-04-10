@@ -2,6 +2,17 @@
 
 All notable changes to [Claudish](https://github.com/MadAppGang/claudish).
 
+## [6.12.1] - 2026-04-10
+
+### Bug Fixes
+
+- v6.12.1 — fix xAI pricing conversion (was 100x too low)([`871e957`](https://github.com/MadAppGang/claudish/commit/871e95727fc18bf55963819c2b081a7f5ef952f9))
+- close remaining race conditions in team-orchestrator *(team)* ([`832cbb7`](https://github.com/MadAppGang/claudish/commit/832cbb7e96e01eaca8564cdb42db400a2026a8e3))
+
+### Documentation
+
+- update CHANGELOG.md for v6.12.0([`107e843`](https://github.com/MadAppGang/claudish/commit/107e8439cea41cc248677714c4d14e97ed1fafb6))
+
 ## [6.12.0] - 2026-04-09
 
 ### Documentation
