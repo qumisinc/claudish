@@ -115,10 +115,13 @@ export class GeminiAPIFormat extends BaseAPIFormat {
           const toolInfo = this.toolCallMap.get(block.tool_use_id);
           if (!toolInfo) {
             log(
-              `[GeminiAPIFormat] Warning: No function name found for tool_use_id ${block.tool_use_id}`
+              `[GeminiAPIFormat] Warning: No function name found for tool_use_id ${block.tool_use_id}, using fallback`
             );
-            continue;
+            // Use tool_use_id as fallback name instead of silently dropping the result.
+            // This can happen during session recovery, context compression, or message truncation.
+            this.toolCallMap.set(block.tool_use_id, { name: block.tool_use_id });
           }
+          const resolvedToolInfo = this.toolCallMap.get(block.tool_use_id)!;
 
           // Extract images from array content and send as separate inlineData parts.
           // Claude sends tool_results like browser_screenshot as [{type:"text",...},{type:"image",...}].
@@ -140,24 +143,26 @@ export class GeminiAPIFormat extends BaseAPIFormat {
               }
             }
 
+            const textContent = textParts.join("\n") || "OK";
             parts.push({
               functionResponse: {
-                name: toolInfo.name,
-                response: {
-                  content: textParts.join("\n") || "OK",
-                },
+                name: resolvedToolInfo.name,
+                response: block.is_error
+                  ? { error: true, message: textContent }
+                  : { content: textContent },
               },
             });
 
             // Append image parts after the functionResponse
             parts.push(...imageParts);
           } else {
+            const textContent = typeof block.content === "string" ? block.content : JSON.stringify(block.content);
             parts.push({
               functionResponse: {
-                name: toolInfo.name,
-                response: {
-                  content: typeof block.content === "string" ? block.content : JSON.stringify(block.content),
-                },
+                name: resolvedToolInfo.name,
+                response: block.is_error
+                  ? { error: true, message: textContent }
+                  : { content: textContent },
               },
             });
           }

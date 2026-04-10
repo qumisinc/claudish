@@ -1137,6 +1137,156 @@ describe("Regression: GeminiAPIFormat images in tool_result", () => {
   });
 });
 
+describe("ENG-2236: is_error mapping and orphaned tool_result handling", () => {
+  async function getAdapter() {
+    const mod = await import("./adapters/gemini-api-format.js");
+    return mod.GeminiAPIFormat;
+  }
+
+  test("tool_result with is_error maps to error response format", async () => {
+    const GeminiAPIFormat = await getAdapter();
+    const adapter = new GeminiAPIFormat("gemini-2.0-flash");
+
+    adapter.registerToolCall("toolu_err_1", "Bash");
+
+    const claudeRequest = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_err_1", name: "Bash", input: { command: "false" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_err_1",
+              is_error: true,
+              content: "Command failed with exit code 1",
+            },
+          ],
+        },
+      ],
+    };
+
+    const messages = adapter.convertMessages(claudeRequest);
+    const userMsg = messages.find((m: any) => m.role === "user");
+    const fnResponse = userMsg.parts.find((p: any) => p.functionResponse);
+
+    expect(fnResponse).toBeDefined();
+    expect(fnResponse.functionResponse.name).toBe("Bash");
+    expect(fnResponse.functionResponse.response.error).toBe(true);
+    expect(fnResponse.functionResponse.response.message).toBe("Command failed with exit code 1");
+    // Should NOT have a content field when is_error is true
+    expect(fnResponse.functionResponse.response.content).toBeUndefined();
+  });
+
+  test("tool_result without is_error uses content response format", async () => {
+    const GeminiAPIFormat = await getAdapter();
+    const adapter = new GeminiAPIFormat("gemini-2.0-flash");
+
+    adapter.registerToolCall("toolu_ok_1", "Bash");
+
+    const claudeRequest = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_ok_1", name: "Bash", input: { command: "echo hi" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_ok_1",
+              content: "hi",
+            },
+          ],
+        },
+      ],
+    };
+
+    const messages = adapter.convertMessages(claudeRequest);
+    const userMsg = messages.find((m: any) => m.role === "user");
+    const fnResponse = userMsg.parts.find((p: any) => p.functionResponse);
+
+    expect(fnResponse).toBeDefined();
+    expect(fnResponse.functionResponse.response.content).toBe("hi");
+    expect(fnResponse.functionResponse.response.error).toBeUndefined();
+  });
+
+  test("tool_result with is_error and array content maps to error format", async () => {
+    const GeminiAPIFormat = await getAdapter();
+    const adapter = new GeminiAPIFormat("gemini-2.0-flash");
+
+    adapter.registerToolCall("toolu_err_2", "Read");
+
+    const claudeRequest = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_err_2", name: "Read", input: { file_path: "/no/such/file" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_err_2",
+              is_error: true,
+              content: [{ type: "text", text: "ENOENT: no such file or directory" }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const messages = adapter.convertMessages(claudeRequest);
+    const userMsg = messages.find((m: any) => m.role === "user");
+    const fnResponse = userMsg.parts.find((p: any) => p.functionResponse);
+
+    expect(fnResponse).toBeDefined();
+    expect(fnResponse.functionResponse.response.error).toBe(true);
+    expect(fnResponse.functionResponse.response.message).toBe("ENOENT: no such file or directory");
+  });
+
+  test("orphaned tool_result uses tool_use_id as fallback name", async () => {
+    const GeminiAPIFormat = await getAdapter();
+    const adapter = new GeminiAPIFormat("gemini-2.0-flash");
+
+    // Intentionally NOT registering the tool call to simulate orphaned result
+    const claudeRequest = {
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_orphan_1",
+              content: "some result from a lost tool call",
+            },
+          ],
+        },
+      ],
+    };
+
+    const messages = adapter.convertMessages(claudeRequest);
+    const userMsg = messages.find((m: any) => m.role === "user");
+    const fnResponse = userMsg.parts.find((p: any) => p.functionResponse);
+
+    // Should NOT be dropped — should use tool_use_id as fallback name
+    expect(fnResponse).toBeDefined();
+    expect(fnResponse.functionResponse.name).toBe("toolu_orphan_1");
+    expect(fnResponse.functionResponse.response.content).toBe("some result from a lost tool call");
+  });
+});
+
 describe("Regression: Z.AI GLM-5 input_tokens in final usage event (#74)", () => {
   test("input_tokens from message_delta.usage is captured (not stuck at 0)", async () => {
     const mod = await import("./handlers/shared/stream-parsers/anthropic-sse.js");

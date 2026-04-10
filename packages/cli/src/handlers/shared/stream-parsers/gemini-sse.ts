@@ -20,6 +20,8 @@ export interface GeminiSseOptions {
   onToolCall?: (toolId: string, name: string, thoughtSignature?: string) => void;
   /** CodeAssist wraps chunks in {response: {...}} */
   unwrapResponse?: boolean;
+  /** Sanitized → original tool name mapping for reverse-mapping */
+  toolNameMap?: Map<string, string>;
 }
 
 export function createGeminiSseStream(
@@ -240,9 +242,13 @@ export function createGeminiSseStream(
                     const blockIndex = curIdx++;
                     const args = JSON.stringify(part.functionCall.args || {});
 
+                    // Reverse-map sanitized tool name back to original
+                    const rawName = part.functionCall.name;
+                    const restoredName = opts.toolNameMap?.get(rawName) || rawName;
+
                     const t = {
                       id: toolId,
-                      name: part.functionCall.name,
+                      name: restoredName,
                       blockIndex,
                       started: true,
                       closed: false,
@@ -250,14 +256,16 @@ export function createGeminiSseStream(
                     toolCalls.set(toolIdx, t);
 
                     // Store tool call info + thoughtSignature for future requests
+                    // Use the raw (sanitized) name for the adapter's toolCallMap since
+                    // that's what Gemini will reference in subsequent requests
                     if (opts.onToolCall) {
-                      opts.onToolCall(toolId, part.functionCall.name, part.thoughtSignature);
+                      opts.onToolCall(toolId, rawName, part.thoughtSignature);
                     }
 
                     send("content_block_start", {
                       type: "content_block_start",
                       index: blockIndex,
-                      content_block: { type: "tool_use", id: toolId, name: part.functionCall.name },
+                      content_block: { type: "tool_use", id: toolId, name: restoredName },
                     });
                     send("content_block_delta", {
                       type: "content_block_delta",

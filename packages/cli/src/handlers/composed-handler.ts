@@ -733,6 +733,7 @@ export class ComposedHandler implements ModelHandler {
           onTokenUpdate,
           onToolCall,
           unwrapResponse: this.options.unwrapGeminiResponse,
+          toolNameMap: adapter.getToolNameMap(),
         });
       }
 
