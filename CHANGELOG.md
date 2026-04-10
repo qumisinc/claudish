@@ -2,6 +2,17 @@
 
 All notable changes to [Claudish](https://github.com/MadAppGang/claudish).
 
+## [6.12.2] - 2026-04-10
+
+### Bug Fixes
+
+- v6.12.2 — team orchestrator race conditions and test hardening([`302e3f3`](https://github.com/MadAppGang/claudish/commit/302e3f372f0be1961175ea217b07e576a3262e2c))
+- use official pricing from provider docs, not aggregator prices([`0e8bc48`](https://github.com/MadAppGang/claudish/commit/0e8bc480790d92763b49f5cc99f619b8d370fa53))
+
+### Documentation
+
+- update CHANGELOG.md for v6.12.1([`21c5fc0`](https://github.com/MadAppGang/claudish/commit/21c5fc07cca05040097f18f5c9e7dcac92280767))
+
 ## [6.12.1] - 2026-04-10
 
 ### Bug Fixes
