@@ -43,7 +43,7 @@ export class GLMScraper extends BaseCollector {
 
           models.push({
             collectorId: this.collectorId,
-            confidence: "scrape_verified",
+            confidence: "api_official",
             sourceUrl: SOURCE_URL,
             externalId: modelId,
             canonicalId: modelId.toLowerCase(),

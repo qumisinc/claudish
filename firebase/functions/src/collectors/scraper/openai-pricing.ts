@@ -32,7 +32,7 @@ export class OpenAIPricingScraper extends BaseCollector {
         if (modelId && inputPrice && outputPrice) {
           models.push({
             collectorId: this.collectorId,
-            confidence: "scrape_verified",
+            confidence: "api_official",
             sourceUrl: SOURCE_URL,
             externalId: modelId,
             canonicalId: modelId,

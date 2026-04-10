@@ -57,7 +57,7 @@ export class DeepSeekScraper extends BaseCollector {
 
       const models: RawModel[] = modelNames.map(name => ({
         collectorId: this.collectorId,
-        confidence: "scrape_verified" as const,
+        confidence: "api_official" as const,
         sourceUrl: SOURCE_URL,
         externalId: name,
         canonicalId: name,
