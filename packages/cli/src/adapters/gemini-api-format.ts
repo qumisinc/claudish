@@ -72,6 +72,8 @@ export class GeminiAPIFormat extends BaseAPIFormat {
   /** Reasoning filter state */
   private inReasoningBlock = false;
   private reasoningBlockDepth = 0;
+  /** When true, thinking blocks are being received — skip reasoning filter */
+  private thinkingActive = false;
 
   constructor(modelId: string) {
     super(modelId);
@@ -296,10 +298,27 @@ export class GeminiAPIFormat extends BaseAPIFormat {
     }
   }
 
+  // ─── Thinking State ────────────────────────────────────────────────
+
+  /**
+   * Signal that thinking blocks have been received in the current stream.
+   * When active, the reasoning filter is bypassed because Gemini is properly
+   * separating reasoning into thought/thoughtText parts.
+   */
+  setThinkingActive(active: boolean): void {
+    this.thinkingActive = active;
+  }
+
   // ─── Text Processing (reasoning filter) ───────────────────────────
 
   processTextContent(textContent: string, _accumulatedText: string): AdapterResult {
     if (!textContent || textContent.trim() === "") {
+      return { cleanedText: textContent, extractedToolCalls: [], wasTransformed: false };
+    }
+
+    // If thinking blocks are being received, Gemini is properly separating
+    // reasoning from output — skip the filter to avoid false positives.
+    if (this.thinkingActive) {
       return { cleanedText: textContent, extractedToolCalls: [], wasTransformed: false };
     }
 
@@ -368,6 +387,7 @@ export class GeminiAPIFormat extends BaseAPIFormat {
   override reset(): void {
     this.inReasoningBlock = false;
     this.reasoningBlockDepth = 0;
+    this.thinkingActive = false;
     // Do NOT clear toolCallMap or toolNameMap
   }
 

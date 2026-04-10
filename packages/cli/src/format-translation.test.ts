@@ -1287,6 +1287,49 @@ describe("ENG-2236: is_error mapping and orphaned tool_result handling", () => {
   });
 });
 
+describe("ENG-2239: reasoning filter bypassed when thinking is active", () => {
+  async function getAdapter() {
+    const mod = await import("./adapters/gemini-api-format.js");
+    return mod.GeminiAPIFormat;
+  }
+
+  test("reasoning filter strips text when thinking is NOT active", async () => {
+    const GeminiAPIFormat = await getAdapter();
+    const adapter = new GeminiAPIFormat("gemini-2.0-flash");
+
+    // Without thinking active, reasoning-like text should be filtered
+    const result = adapter.processTextContent("I'll run the diagnostic commands now.", "");
+    expect(result.cleanedText?.trim()).toBe("");
+    expect(result.wasTransformed).toBe(true);
+  });
+
+  test("reasoning filter is bypassed when thinking IS active", async () => {
+    const GeminiAPIFormat = await getAdapter();
+    const adapter = new GeminiAPIFormat("gemini-2.0-flash");
+
+    // Signal that thinking blocks have been received
+    adapter.setThinkingActive(true);
+
+    // Same text should NOT be filtered when thinking is active
+    const result = adapter.processTextContent("I'll run the diagnostic commands now.", "");
+    expect(result.cleanedText).toBe("I'll run the diagnostic commands now.");
+    expect(result.wasTransformed).toBe(false);
+  });
+
+  test("reasoning filter reactivates after reset()", async () => {
+    const GeminiAPIFormat = await getAdapter();
+    const adapter = new GeminiAPIFormat("gemini-2.0-flash");
+
+    adapter.setThinkingActive(true);
+    adapter.reset();
+
+    // After reset, filter should be active again
+    const result = adapter.processTextContent("I'll run the diagnostic commands now.", "");
+    expect(result.cleanedText?.trim()).toBe("");
+    expect(result.wasTransformed).toBe(true);
+  });
+});
+
 describe("Regression: Z.AI GLM-5 input_tokens in final usage event (#74)", () => {
   test("input_tokens from message_delta.usage is captured (not stuck at 0)", async () => {
     const mod = await import("./handlers/shared/stream-parsers/anthropic-sse.js");

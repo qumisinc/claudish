@@ -170,6 +170,10 @@ export function createGeminiSseStream(
                   if (part.thought || part.thoughtText) {
                     const thinkingContent = part.thought || part.thoughtText;
                     if (!thinkingStarted) {
+                      // Signal adapter that thinking is active — disables reasoning filter
+                      if (opts.adapter && typeof (opts.adapter as any).setThinkingActive === 'function') {
+                        (opts.adapter as any).setThinkingActive(true);
+                      }
                       thinkingIdx = curIdx++;
                       send("content_block_start", {
                         type: "content_block_start",
