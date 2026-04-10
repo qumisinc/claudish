@@ -290,6 +290,10 @@ export const collectModelCatalog = onSchedule(
     const writer = new FirestoreWriter();
     const newModelIds = await writer.write(merged);
 
+    // Clean up stale docs from previous runs (changed IDs, removed models)
+    const currentIds = new Set(merged.map(m => m.modelId));
+    await writer.cleanupStale(currentIds);
+
     // Auto-generate recommended models from scored catalog
     const recommended = await generateRecommendedModels();
     console.log(`[catalog] recommended models updated: ${recommended.length} picks`);
@@ -363,6 +367,10 @@ export const collectModelCatalogManual = onRequest(
       const merged = mergeResults(results);
       const writer = new FirestoreWriter();
       await writer.write(merged);
+
+      // Clean up stale docs
+      const currentIds = new Set(merged.map(m => m.modelId));
+      const staleCount = await writer.cleanupStale(currentIds);
 
       // Auto-generate recommended models
       const recommended = await generateRecommendedModels();

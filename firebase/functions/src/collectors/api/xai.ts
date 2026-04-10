@@ -61,11 +61,21 @@ export class XAICollector extends BaseCollector {
         const hasVision = m.input_modalities?.includes("image") ?? false;
         const isReasoning = m.id.includes("reasoning") || m.id.includes("thinking");
 
-        // Use the shortest alias as canonical ID (e.g. "grok-4.20" instead of "grok-4.20-0309-reasoning")
-        const shortestAlias = m.aliases
-          ?.filter(a => !a.includes("beta") && !a.includes("experimental") && !a.includes("latest"))
-          .sort((a, b) => a.length - b.length)[0];
-        const canonicalId = shortestAlias ?? m.id;
+        // Resolve canonical ID to match OpenRouter convention (the ecosystem standard).
+        // xAI API uses versioned IDs like "grok-4-1-fast-reasoning" with aliases.
+        // OpenRouter uses dot-notation: "grok-4.1-fast", "grok-4.20".
+        // Strategy: find the alias that matches OpenRouter, or convert to dot-notation.
+        const cleanAliases = m.aliases
+          ?.filter(a => !a.includes("beta") && !a.includes("experimental") && !a.includes("latest"));
+        // Prefer alias that already has dot-notation version (e.g. "grok-4.20")
+        const dotAlias = cleanAliases?.find(a => /\d\.\d/.test(a));
+        const shortestAlias = cleanAliases?.sort((a, b) => a.length - b.length)[0];
+        let canonicalId = dotAlias ?? shortestAlias ?? m.id;
+        // If no dot alias found, convert "grok-N-M" pattern to "grok-N.M" to match OpenRouter
+        // e.g. "grok-4-1-fast" → "grok-4.1-fast"
+        if (!dotAlias && canonicalId.startsWith("grok-")) {
+          canonicalId = canonicalId.replace(/^(grok-)(\d+)-(\d+)/, "$1$2.$3");
+        }
 
         models.push({
           collectorId: this.collectorId,

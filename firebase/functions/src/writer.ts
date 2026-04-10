@@ -84,6 +84,43 @@ export class FirestoreWriter {
     await writer.close();
     return newModelIds;
   }
+
+  /**
+   * Mark models not in the current merged set as deprecated.
+   * This cleans up stale docs from previous runs where collector IDs changed
+   * (e.g. xAI versioned IDs → clean aliases).
+   */
+  async cleanupStale(currentModelIds: Set<string>): Promise<number> {
+    const snap = await this.db.collection("models")
+      .where("status", "in", ["active", "preview"])
+      .get();
+
+    const writer = this.db.bulkWriter();
+    let count = 0;
+
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data() as ModelDoc;
+      // If this doc's modelId wasn't produced by the current merge, mark it stale
+      if (!currentModelIds.has(data.modelId)) {
+        // Only mark stale if it hasn't been updated recently (avoid race conditions)
+        const lastUpdated = data.lastUpdated?.toMillis() ?? 0;
+        const ageHours = (Date.now() - lastUpdated) / (1000 * 60 * 60);
+        if (ageHours > 48) {
+          writer.update(docSnap.ref, {
+            status: "deprecated",
+            dataFreshnessWarning: true,
+          });
+          count++;
+        }
+      }
+    }
+
+    await writer.close();
+    if (count > 0) {
+      console.log(`[catalog] marked ${count} stale models as deprecated`);
+    }
+    return count;
+  }
 }
 
 /**

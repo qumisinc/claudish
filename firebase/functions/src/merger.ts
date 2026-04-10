@@ -237,9 +237,9 @@ function normalizeId(id: string): string {
 }
 
 /**
- * Normalize a canonical key for grouping: lowercase + strip :free suffix.
- * OpenRouter appends ":free" to free-tier model IDs — these should merge
- * with the paid version, not create separate documents.
+ * Normalize a canonical key for grouping:
+ * - lowercase
+ * - strip :free suffix (OpenRouter free-tier duplicates)
  */
 function normalizeCanonicalKey(key: string): string {
   return key.toLowerCase().replace(/:free$/, "");
